@@ -15,3 +15,6 @@ while (chances > 0) and (not correct):
     elif (guess != trueNumber) and (abs(guess - trueNumber) <= 20):
         print('Anda salah, tebakan anda terlalu rendah.')
         chances -= 1
+
+if chances == 0 and (not correct):
+    print(f'Jawabannya adalah {trueNumber}.')
