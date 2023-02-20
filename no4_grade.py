@@ -1,16 +1,16 @@
 nilai = float(input('Masukkan nilai akhir: '))
 
-if nilai > 80:
+if nilai >= 80:
     grade = "A"
-elif nilai > 75:
+elif nilai >= 75:
     grade = "B+"
-elif nilai > 70:
+elif nilai >= 70:
     grade = "B"
-elif nilai > 65:
+elif nilai >= 65:
     grade = "C+"
-elif nilai > 60:
+elif nilai >= 60:
     grade = "C"
-elif nilai > 45:
+elif nilai >= 45:
     grade = "D"
 else:
     grade = "E"
