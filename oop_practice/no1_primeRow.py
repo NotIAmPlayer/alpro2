@@ -22,3 +22,5 @@ class PrimeRow():
             
             primeScore = 0
             m += 1
+        
+        print("", end = "\n")
