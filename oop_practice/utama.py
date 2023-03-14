@@ -9,6 +9,7 @@ from no8_tri3 import TriPattern3
 from no9_tri4 import TriPattern4
 
 sel = -1
+sel2 = 0
 
 while sel != 0 and sel < 10:
     if sel == -1:
@@ -23,6 +24,7 @@ while sel != 0 and sel < 10:
         print("7. Upside Down Triangle Pattern")
         print("8. Diamond Pattern from n")
         print("9. Hourglass Pattern from n")
+        print("10. Exit (Alt: 0)")
 
         sel = int(input("Input: "))
 
@@ -50,3 +52,26 @@ while sel != 0 and sel < 10:
         num = int(input("Input a number to draw a triangle pattern: "))
         tri = TriPattern(num)
         tri.printPattern()
+    elif sel == 7:
+        num = int(input("Input a number to draw an upside down triangle pattern: "))
+        tri = TriPattern2(num)
+        tri.printPattern()
+    elif sel == 8:
+        num = int(input("Input a number to draw a diamond pattern: "))
+        diamond = TriPattern3(num)
+        diamond.printPattern()
+    elif sel == 9:
+        num = int(input("Input a number to draw an hourglass pattern: "))
+        glass = TriPattern4(num)
+        glass.printPattern()
+    
+    if sel != 0 and sel < 10:
+        print("Would you like to return to the menu?")
+        print("1. No")
+        print("2. Yes")
+        sel2 = int(input("Input: "))
+
+        if sel2 % 2 == 0:
+            sel = -1
+        
+        sel2 = 0
