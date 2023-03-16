@@ -17,6 +17,7 @@ class Player():
         self.speedX         = 0
         self.speedY         = 0
         self.direction      = 1
+        # Player states
         self.jumpTimer      = 0
         self.hasJumped      = 0
         self.collideLeft    = False
@@ -24,14 +25,43 @@ class Player():
         self.collideTop     = False
         self.collideBottom  = False
     
-    def update():
-        pass
+    def update(self):
+        self.x = self.rect.x
+        self.y = self.rect.y
+
+        if pygame.key.get_pressed():
+            if pygame.key.get_pressed()[pygame.K_RIGHT]:
+                self.speedX = 1
+            if pygame.key.get_pressed()[pygame.K_LEFT]:
+                self.speedX = -1
+            if (not pygame.key.get_pressed()[pygame.K_RIGHT]) and (not pygame.key.get_pressed()[pygame.K_LEFT]):
+                self.speedX = 0
+            
+            if pygame.key.get_pressed()[pygame.K_z] and self.rect.collideobjectsall(blockRects):
+                self.hasJumped = True
+        
+        if not self.rect.collideobjectsall(blockRects):
+            if self.speedY < 3:
+                self.speedY += 0.4
+        else:
+            self.speedY = 0
+        
+        if self.hasJumped and self.jumpTimer < 32:
+            self.speedY = -2.2
+
+            self.jumpTimer += 1
+        else:
+            self.hasJumped = False
+            self.jumpTimer = 0
+        
+        self.rect = self.rect.move((self.speedX, self.speedY))
+
+        screen.blit(self.gfx, self.rect)
+
         
 
-player = pygame.image.load("pygame project\\test.png")
-playerRect = player.get_rect()
+player = Player()
 clock = pygame.time.Clock()
-speed = [0, 0]
 
 blockGFXs = [pygame.image.load("pygame project\\block-1.png")]
 blockRects = [blockGFXs[0].get_rect(), blockGFXs[0].get_rect(), blockGFXs[0].get_rect(), blockGFXs[0].get_rect(), blockGFXs[0].get_rect(), blockGFXs[0].get_rect(), blockGFXs[0].get_rect()]
@@ -49,36 +79,12 @@ while True:
     for event in pygame.event.get():
         if event.type == pygame.QUIT: sys.exit()
     
-    if pygame.key.get_pressed():
-        if pygame.key.get_pressed()[pygame.K_RIGHT]:
-            speed[0] = 1
-        if pygame.key.get_pressed()[pygame.K_LEFT]:
-            speed[0] = -1
-        if (not pygame.key.get_pressed()[pygame.K_RIGHT]) and (not pygame.key.get_pressed()[pygame.K_LEFT]):
-            speed[0] = 0
-        
-        if pygame.key.get_pressed()[pygame.K_z] and playerRect.collideobjectsall(blockRects):
-            playerStates[0] = True
-    
-    if not playerRect.collideobjectsall(blockRects):
-        speed[1] = 3
-    else:
-        speed[1] = 0
-    
-    if playerStates[0] and playerStates[1] < 25:
-        speed[1] = -2.2
-
-        playerStates[1] = playerStates[1] + 1
-    else:
-        playerStates[0] = False
-        playerStates[1] = 0
-    
-    playerRect = playerRect.move(speed)
-
     screen.fill(black)
-    screen.blit(player, playerRect)
 
     for k, v in enumerate(blockRects):
         screen.blit(blockGFXs[0], blockRects[k])
+    
+    player.update()
+    
     pygame.display.flip()
     clock.tick(60)
