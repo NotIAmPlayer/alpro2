@@ -56,9 +56,7 @@ class Player():
         
         self.rect = self.rect.move((self.speedX, self.speedY))
 
-        screen.blit(self.gfx, self.rect)
-
-        
+        screen.blit(self.gfx, self.rect) 
 
 player = Player()
 clock = pygame.time.Clock()
