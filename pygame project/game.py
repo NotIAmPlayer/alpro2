@@ -6,29 +6,23 @@ screen = pygame.display.set_mode(size)
 black = (0, 0, 0)
 
 class Player():
-    def __init__(self) -> None:
+    def __init__(self, x: int, y: int) -> None:
         self.gfx            = pygame.image.load("pygame project\\test.png")
         self.rect           = self.gfx.get_rect()
-        #Gameplay vars
-        self.x              = self.rect.x
-        self.y              = self.rect.y
+        # Gameplay vars
         self.width          = self.rect.width
         self.height         = self.rect.height
         self.speedX         = 0
         self.speedY         = 0
         self.direction      = 1
+        # Starting location
+        self.rect.x         = x
+        self.rect.y         = y
         # Player states
         self.jumpTimer      = 0
         self.hasJumped      = 0
-        self.collideLeft    = False
-        self.collideRight   = False
-        self.collideTop     = False
-        self.collideBottom  = False
     
-    def update(self):
-        self.x = self.rect.x
-        self.y = self.rect.y
-
+    def update(self):        
         if pygame.key.get_pressed():
             if pygame.key.get_pressed()[pygame.K_RIGHT]:
                 self.speedX = 1
@@ -37,52 +31,92 @@ class Player():
             if (not pygame.key.get_pressed()[pygame.K_RIGHT]) and (not pygame.key.get_pressed()[pygame.K_LEFT]):
                 self.speedX = 0
             
-            if pygame.key.get_pressed()[pygame.K_z] and self.rect.collideobjectsall(blockRects):
+            if pygame.key.get_pressed()[pygame.K_z] and not self.hasJumped:
                 self.hasJumped = True
+                self.collideBottom = False
         
-        if not self.rect.collideobjectsall(blockRects):
-            if self.speedY < 3:
-                self.speedY += 0.4
-        else:
-            self.speedY = 0
-        
-        if self.hasJumped and self.jumpTimer < 32:
+        if self.hasJumped and self.jumpTimer < 25:
             self.speedY = -2.2
 
             self.jumpTimer += 1
         else:
-            self.hasJumped = False
-            self.jumpTimer = 0
+            if self.speedY < 3:
+                self.speedY += 0.4
+            else:
+                self.speedY = 3
         
-        self.rect = self.rect.move((self.speedX, self.speedY))
+        for k, v in enumerate(blocks):
+            # horizontal collision
+            if v.rect.colliderect(self.rect.x + self.speedX, self.rect.y, self.width, self.height):
+                self.speedX = 0
 
-        screen.blit(self.gfx, self.rect) 
+            # vertical collision
+            if v.rect.colliderect(self.rect.x, self.rect.y + self.speedY, self.width, self.height):
+                # below the block
+                if self.speedY < 0:
+                    self.speedY = v.rect.bottom - self.rect.top
+                    self.speedY = 0
+                # above the block
+                elif self.speedY >= 0:
+                    self.speedY = v.rect.top - self.rect.bottom
+                    # reset jump status
+                    self.hasJumped = False
+                    self.jumpTimer = 0
 
-player = Player()
+        self.rect.x += self.speedX
+        self.rect.y += self.speedY
+
+        screen.blit(self.gfx, self.rect)
+        #pygame.draw.rect(screen, (255, 0, 0), self.rect, 2)
+
+class Block():
+    def __init__(self, id: int, x: int, y: int) -> None:
+        self.id             = id
+        self.gfx            = pygame.image.load(f"pygame project\\block-{id}.png")
+        self.rect           = self.gfx.get_rect()
+        self.width          = self.rect.width
+        self.height         = self.rect.height
+        # Starting location
+        self.rect.x         = x
+        self.rect.y         = y
+    
+    def update(self):
+        screen.blit(self.gfx, self.rect)
+        #pygame.draw.rect(screen, (0, 0, 255), self.rect, 2)
+
+player = Player(16, 160)
 clock = pygame.time.Clock()
 
-blockGFXs = [pygame.image.load("pygame project\\block-1.png")]
-blockRects = [blockGFXs[0].get_rect(), blockGFXs[0].get_rect(), blockGFXs[0].get_rect(), blockGFXs[0].get_rect(), blockGFXs[0].get_rect(), blockGFXs[0].get_rect(), blockGFXs[0].get_rect()]
-playerStates = [False, 0]
-
-blockRects[0].y = 192
-blockRects[1].x, blockRects[1].y = 16, 192
-blockRects[2].x, blockRects[2].y = 32, 192
-blockRects[3].x, blockRects[3].y = 48, 160
-blockRects[4].x, blockRects[4].y = 64, 192
-blockRects[5].x, blockRects[5].y = 80, 192
-blockRects[6].x, blockRects[6].y = 96, 192
+blocks = [
+    Block(3, 0, 192),
+    Block(3, 16, 192),
+    Block(3, 32, 192),
+    Block(1, 48, 160),
+    Block(1, 48, 176),
+    Block(3, 48, 192),
+    Block(3, 64, 192),
+    Block(3, 80, 192),
+    Block(4, 96, 192),
+    Block(1, 64, 64),
+    Block(1, 80, 64),
+    Block(1, 96, 64),
+    Block(3, 112, 208),
+    Block(3, 128, 208),
+    Block(3, 144, 208),
+    Block(4, 160, 208),
+    Block(2, 240, 208)
+]
 
 while True:
     for event in pygame.event.get():
         if event.type == pygame.QUIT: sys.exit()
     
     screen.fill(black)
-
-    for k, v in enumerate(blockRects):
-        screen.blit(blockGFXs[0], blockRects[k])
     
     player.update()
+
+    for k, b in enumerate(blocks):
+        b.update()
     
     pygame.display.flip()
     clock.tick(60)
