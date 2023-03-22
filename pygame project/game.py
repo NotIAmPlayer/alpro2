@@ -35,7 +35,7 @@ class Player():
                 self.hasJumped = True
                 self.collideBottom = False
         
-        if self.hasJumped and self.jumpTimer < 25:
+        if self.hasJumped and self.jumpTimer < 22:
             self.speedY = -2.2
 
             self.jumpTimer += 1
