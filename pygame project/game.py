@@ -72,7 +72,7 @@ class Player():
 class Block():
     def __init__(self, id: int, x: int, y: int) -> None:
         self.id             = id
-        self.gfx            = pygame.image.load(f"pygame project\\block-{id}.png")
+        self.gfx            = pygame.image.load(f"pygame project\\block\\block-{id}.png")
         self.rect           = self.gfx.get_rect()
         self.width          = self.rect.width
         self.height         = self.rect.height
