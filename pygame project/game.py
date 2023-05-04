@@ -149,7 +149,7 @@ class Player():
             if not camera.isUpdating:
                 self.handleControls()
                 
-                if self.hasJumped and self.jumpTimer < 22:
+                if self.hasJumped and self.jumpTimer < 16:
                     self.speedY = -2.2
 
                     self.jumpTimer += 1
@@ -235,6 +235,9 @@ class Player():
         for k, s in enumerate(sections):
             if player.rect.x >= s.x and player.rect.x <= s.x + s.width and player.rect.y >= s.y and player.rect.y <= s.y + s.height:
                 player.section = k
+        
+        if lookForSection(player.rect.x, player.rect.y) == -1 and player.rect.y > s.y + s.height:
+            player.harm(player.health)
         
         # flicker when the player gets damaged
         if self.immuneFrames % 4 == 0:
@@ -547,6 +550,7 @@ blocks = [
     Block(3, 0, 192, 0),
     Block(3, 16, 192, 0),
     Block(3, 32, 192, 0),
+    Block(1, 48, 144, 0),
     Block(1, 48, 160, 0),
     Block(1, 48, 176, 0),
     Block(13, 64, 160, 0),
@@ -641,7 +645,7 @@ while True:
         # HUDs
         screen.blit(bars[7], (8, 78 - player.maxHealth * 2), (0, 0, 8, player.maxHealth * 2))
 
-        for i in range(player.health + 1):
+        for i in range(1, player.health + 1):
             x = 8
             y = 78 - 2 * i
             screen.blit(bars[0], (x, y))
