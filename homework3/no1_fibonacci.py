@@ -9,7 +9,7 @@ class FibonacciRow():
 
     def getNumber(self):
         try:
-            self.n = int(input("Input a number: "))
+            self.n = int(input("Input a number (integer): "))
         except ValueError:
             print("Value inserted is not valid.")
             self.getNumber()
@@ -27,3 +27,6 @@ class FibonacciRow():
         
         print(text)
         file.write(f"{text}\n")
+        file.close()
+
+a = FibonacciRow()
