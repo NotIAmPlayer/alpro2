@@ -1,24 +1,26 @@
-a = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+array = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5]
 
-PRIME_NUMS = [2, 3, 5, 7]
+NUM_PRIME = [2, 3, 5, 7]
 
-print("a = [", end = "")
-for i in a:
-    print(i, end = "")
+def get_num(idFilter):
+    ret = []
 
-    if i != len(a):
-        print(", ", end = "")
-print("]")
+    idLookup = None
+    if type(idFilter) == list:
+        idLookup = idFilter
+        idFilter = None
+    elif type(idFilter) == int:
+        idLookup = [idFilter]
+        idFilter = None
+    else:
+        print("Invalid id parameters")
 
-b = a
-for i in b:
-    if i in PRIME_NUMS:
-        b.remove(i)
+    for k, v in enumerate(array):
+        if v in idLookup:
+            ret.append(v)
+    
+    return ret
 
-print("b = [", end = "")
-for i in b:
-    print(i, end = "")
-
-    if i != len(b):
-        print(", ", end = "")
-print("]")
+primes = get_num(NUM_PRIME)
+print(array)
+print(primes)

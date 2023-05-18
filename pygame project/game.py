@@ -5,21 +5,24 @@ pygame.init()
 size = width, height = 256, 224
 screen = pygame.display.set_mode(size, pygame.SCALED)
 black = (0, 0, 0)
+
+#game variables
 inGame = True
+isPaused = False
 
 pygame.display.set_caption("Xyler Infiltration w10")
-font = pygame.font.Font("pygame project\\font\\PressStart2P.ttf", 8)
+font = pygame.font.Font("pygame project/font/PressStart2P.ttf", 8)
 
 # assets
 bars = [
-    pygame.image.load("pygame project\\hud\\bar_health.png"),
-    pygame.image.load("pygame project\\hud\\bar_crystal_blast.png"),
-    pygame.image.load("pygame project\\hud\\bar_shock_force.png"),
-    pygame.image.load("pygame project\\hud\\bar_spiral_cyclone.png"),
-    pygame.image.load("pygame project\\hud\\bar_burner_wave.png"),
-    pygame.image.load("pygame project\\hud\\bar_leaf_guard.png"),
-    pygame.image.load("pygame project\\hud\\bar_downpour_storm.png"),
-    pygame.image.load("pygame project\\hud\\bar_empty.png"),
+    pygame.image.load("pygame project/hud/bar_health.png"),
+    pygame.image.load("pygame project/hud/bar_crystal_blast.png"),
+    pygame.image.load("pygame project/hud/bar_shock_force.png"),
+    pygame.image.load("pygame project/hud/bar_spiral_cyclone.png"),
+    pygame.image.load("pygame project/hud/bar_burner_wave.png"),
+    pygame.image.load("pygame project/hud/bar_leaf_guard.png"),
+    pygame.image.load("pygame project/hud/bar_downpour_storm.png"),
+    pygame.image.load("pygame project/hud/bar_empty.png"),
 ]
 
 # constants
@@ -62,7 +65,7 @@ class Section():
 
 class Player():
     def __init__(self, x: int, y: int, section: int) -> None:
-        self.gfx            = pygame.image.load("pygame project\\test.png")
+        self.gfx            = pygame.image.load("pygame project/test.png")
         self.rect           = self.gfx.get_rect()
         # Gameplay vars
         self.width          = self.rect.width
@@ -83,7 +86,8 @@ class Player():
         self.attackCooldown = 0
         self.isOnGround     = False
         self.isClimbing     = False
-        self.nearLadder     = False
+        self.nearLadder     = 0
+        self.ladderX        = 0
         self.bulletsOut     = 0
         self.immuneFrames   = 0
         self.hasDied        = False
@@ -98,37 +102,38 @@ class Player():
             self.immuneFrames = 90
     
     def handleControls(self):
-        if pygame.key.get_pressed():
-            if pygame.key.get_pressed()[pygame.K_RIGHT]:
+        keypressed = pygame.key.get_pressed()
+        if keypressed:
+            if keypressed[pygame.K_RIGHT]:
                 self.direction = DIR_RIGHT
-            if pygame.key.get_pressed()[pygame.K_LEFT]:
+            if keypressed[pygame.K_LEFT]:
                 self.direction = DIR_LEFT
             
             if not self.isClimbing:                    
                 self.speedX = self.direction
 
-                if pygame.key.get_pressed()[pygame.K_z] and (not self.hasJumped) and self.isOnGround:
+                if keypressed[pygame.K_z] and (not self.hasJumped) and self.isOnGround:
                     self.hasJumped = True
                 
-                if (pygame.key.get_pressed()[pygame.K_UP] or pygame.key.get_pressed()[pygame.K_DOWN]) and self.nearLadder:
+                if keypressed[pygame.K_UP] and self.nearLadder > 0:
                     self.isClimbing = True
             else:
-                if pygame.key.get_pressed()[pygame.K_UP]:
+                if keypressed[pygame.K_UP]:
                     self.speedY = -1
-                if pygame.key.get_pressed()[pygame.K_DOWN]:
+                if keypressed[pygame.K_DOWN]:
                     self.speedY = 1
 
-                if (not pygame.key.get_pressed()[pygame.K_UP]) and (not pygame.key.get_pressed()[pygame.K_DOWN]):
+                if (not keypressed[pygame.K_UP]) and (not keypressed[pygame.K_DOWN]):
                     self.speedY = 0
                 
                 # dismount from ladder
-                if pygame.key.get_pressed()[pygame.K_z]:
+                if keypressed[pygame.K_z]:
                     self.isClimbing = False
 
-            if (not pygame.key.get_pressed()[pygame.K_RIGHT]) and (not pygame.key.get_pressed()[pygame.K_LEFT]):
+            if (not keypressed[pygame.K_RIGHT]) and (not keypressed[pygame.K_LEFT]):
                 self.speedX = 0
             
-            if pygame.key.get_pressed()[pygame.K_s] and self.attackCooldown == 0 and self.bulletsOut < 3:
+            if keypressed[pygame.K_s] and self.attackCooldown == 0 and self.bulletsOut < 3:
                 self.attackCooldown = 10
                 self.bulletsOut += 1
 
@@ -166,8 +171,12 @@ class Player():
 
                 if self.isClimbing:
                     self.width = 16
+                    self.rect.width = self.width
+
+                    self.rect.x = math_clamp(self.rect.x, self.ladderX, self.ladderX)
                 else:
                     self.width = 32
+                    self.rect.width = self.width
             else:
                 if camera.moveDir == DIR_LEFT or camera.moveDir == DIR_RIGHT:
                     self.direction = camera.moveDir
@@ -179,13 +188,9 @@ class Player():
             for k, b in enumerate(blocks):
                 # ladder collision
                 if b.climbable:
-                    if b.rect.colliderect(self.rect.x - 8, self.rect.y - 8, self.width + 8, self.height + 8):
-                        self.nearLadder = True
-                    else:
-                        self.nearLadder = False
-                    
-                    if self.isClimbing:
-                        self.rect.x = b.rect.x
+                    if b.rect.colliderect(self.rect.x, self.rect.y, self.width / 2, self.height):
+                        self.ladderX = b.rect.x
+                        self.nearLadder = 2
                 
                 # horizontal collision
                 if b.solidSide:
@@ -205,26 +210,33 @@ class Player():
                             if not self.isClimbing:
                                 if b.solidSide:
                                     self.speedY = b.rect.top - self.rect.bottom
+                                    # reset jump status
+                                    self.hasJumped = False
+                                    self.jumpTimer = 0
+                                    self.isOnGround = True
                                 else:
                                     if (player.rect.bottom + player.speedX >= b.rect.top - 2) and (player.rect.centery + (player.height/3) < b.rect.top):
                                         self.speedY = b.rect.top - self.rect.bottom
+                                        # reset jump status
+                                        self.hasJumped = False
+                                        self.jumpTimer = 0
+                                        self.isOnGround = True
                             else:
                                 if b.solidSide:
                                     self.speedY = b.rect.top - self.rect.bottom
-                            # reset jump status
-                            self.hasJumped = False
-                            self.jumpTimer = 0
-                            self.isOnGround = True
 
                             if b.climbable:
-                                self.nearLadder = True
+                                if pygame.key.get_pressed()[pygame.K_DOWN]:
+                                    self.isClimbing = True
+                                    self.speedY = 1
                     
                 #dismount from ladders
-                if player.isClimbing:
+                if self.isClimbing:
                     if b.climbable and b.solidTop:
-                        if (self.rect.bottom < b.rect.top + 2):
+                        # make sure no other ladders can affect the player from dismounting
+                        if (self.rect.bottom < b.rect.top + 2) and (self.rect.left == b.rect.left):
                             self.isClimbing = False
-            
+
             if self.immuneFrames > 0:
                 self.immuneFrames -= 1
 
@@ -236,18 +248,22 @@ class Player():
             if player.rect.x >= s.x and player.rect.x <= s.x + s.width and player.rect.y >= s.y and player.rect.y <= s.y + s.height:
                 player.section = k
         
+        if self.nearLadder > 0:
+            self.nearLadder -= 1
+        
         if lookForSection(player.rect.x, player.rect.y) == -1 and player.rect.y > s.y + s.height:
             player.harm(player.health)
         
         # flicker when the player gets damaged
         if self.immuneFrames % 4 == 0:
             screen.blit(self.gfx, (self.rect.x - camera.x, self.rect.y - camera.y), (0, 0, self.width, self.height))
-        #pygame.draw.rect(screen, (255, 0, 0), self.rect, 2)
+        
+        pygame.draw.rect(screen, (255, 0, 0), (self.rect.x - camera.x, self.rect.y - camera.y, self.width, self.height), 2)
 
 class Block():
     def __init__(self, id: int, x: int, y: int, section: int) -> None:
         self.id                 = id
-        self.gfx                = pygame.image.load(f"pygame project\\block\\block-{id}.png")
+        self.gfx                = pygame.image.load(f"pygame project/block/block-{id}.png")
         self.rect               = self.gfx.get_rect()
         self.width              = self.rect.width
         self.height             = self.rect.height
@@ -291,15 +307,17 @@ class NPC_config():
         self.framestyle         = [1, 1, 0]
         self.framedelay         = [1, 1, 1]
         self.health             = [0, 3, 0]
-        self.nogravity          = [True, False]
-        self.noblockcollision   = [True, False]
+        self.nogravity          = [True, False, True]
+        self.noblockcollision   = [True, False, True]
+        self.isWalker           = [False, False, False]
+        self.weakTo             = [[], [], []]
 
 npc_cfg = NPC_config()        
 
 class NPC():
     def __init__(self, id: int, x: int, y: int, section: int, direction: int) -> None:
         self.id             = id
-        self.gfx            = pygame.image.load(f"pygame project\\npc\\npc-{id}.png")
+        self.gfx            = pygame.image.load(f"pygame project/npc/npc-{id}.png")
         self.rect           = self.gfx.get_rect()
         self.rect.width     = npc_cfg.width[id - 1]
         self.rect.height    = npc_cfg.height[id - 1]
@@ -325,14 +343,18 @@ class NPC():
         #shorthands
         self.width          = self.rect.width
         self.height         = self.rect.height
+
+        #behaviors
+        self.nogravity          = npc_cfg.nogravity[id - 1]
+        self.noblockcollision   = npc_cfg.noblockcollision[id - 1]
+        self.isWalker           = npc_cfg.isWalker[id - 1]
+        self.weakTo             = npc_cfg.weakTo[id - 1]
     
     def kill(self):
         self.isValid = False
         self.isActive = False
-        
-        npcs.remove(self)
     
-    def harm(self, damage: int, invincibleFrames: int):
+    def harm(self, damage: int, invincibleFrames: int, damageType):
         self.health = self.health - damage
 
         if self.health <= 0:
@@ -343,115 +365,118 @@ class NPC():
     def update(self):
         # the actual npc behavior
         if self.isValid:
-            if self.id == 1:
-                self.speedX = self.direction * 4
+            if self.isActive:
+                if self.id == 1:
+                    self.speedX = self.direction * 4
 
-                if self.rect.x + self.width < camera.x or self.rect.x > camera.x + camera.width:
-                    player.bulletsOut -= 1
-                    self.kill()
-                if camera.isUpdating:
-                    player.bulletsOut -= 1
-                    self.kill()
-                
-                if self.direction == DIR_LEFT:
-                    self.frame = 0
-                else:
-                    self.frame = 1
-            if self.id == 2:
-                if self.aiState == 0:
-                    if math.fabs(player.rect.centerx - self.rect.centerx) <= 80:
-                        self.aiState = 1
-                    
-                    if player.rect.centerx - self.rect.centerx < 0:
-                        self.direction = DIR_LEFT
-                    else:
-                        self.direction = DIR_RIGHT
+                    if self.rect.x + self.width < camera.x or self.rect.x > camera.x + camera.width:
+                        player.bulletsOut -= 1
+                        self.kill()
+                    if camera.isUpdating:
+                        player.bulletsOut -= 1
+                        self.kill()
                     
                     if self.direction == DIR_LEFT:
                         self.frame = 0
                     else:
-                        self.frame = 2
-
-                    for k, v in enumerate(npcs):
-                        if self.rect.colliderect(v.rect):
-                            if v.id == 1:
-                                v.direction = -v.direction
-                                v.speedY = -3/math.sqrt(2)
-                                v.speedX = 4 * v.direction
-                else:
-                    if self.aiTimer == 0:
-                        sectionX = self.rect.x - sections[self.section].x
-                        sectionY = self.rect.y - sections[self.section].y
-                        
-                        p1 = NPC(3, sectionX + self.width/2, sectionY + self.height/2, self.section, self.direction)
-                        p1.speedX = 3/math.sqrt(2) * self.direction
-                        p1.speedY = -3/math.sqrt(2)
-
-                        p2 = NPC(3, sectionX + self.width/2, sectionY + self.height/2, self.section, self.direction)
-                        p2.speedX = 3 * self.direction
-
-                        p3 = NPC(3, sectionX + self.width/2, sectionY + self.height/2, self.section, self.direction)
-                        p3.speedX = 3/math.sqrt(2) * self.direction
-                        p3.speedY = 3/math.sqrt(2)
-
-                        npcs.append(p1)
-                        npcs.append(p2)
-                        npcs.append(p3)
-
-                    self.aiTimer += 1
-
-                    if self.direction == DIR_LEFT:
                         self.frame = 1
+                if self.id == 2:
+                    if self.aiState == 0:
+                        if math.fabs(player.rect.centerx - self.rect.centerx) <= 80:
+                            self.aiState = 1
+                        
+                        if player.rect.centerx - self.rect.centerx < 0:
+                            self.direction = DIR_LEFT
+                        else:
+                            self.direction = DIR_RIGHT
+                        
+                        if self.direction == DIR_LEFT:
+                            self.frame = 0
+                        else:
+                            self.frame = 2
+
+                        for k, v in enumerate(npcs):
+                            if self.rect.colliderect(v.rect):
+                                if v.id == 1:
+                                    v.direction = -v.direction
+                                    v.speedY = -3/math.sqrt(2)
+                                    v.speedX = 4 * v.direction
                     else:
-                        self.frame = 3
+                        if self.aiTimer == 8:
+                            sectionX = self.rect.x - sections[self.section].x
+                            sectionY = self.rect.y - sections[self.section].y
+                            
+                            p1 = NPC(3, sectionX + self.width/2, sectionY + self.height/2, self.section, self.direction)
+                            p1.speedX = 3/math.sqrt(2) * self.direction
+                            p1.speedY = -3/math.sqrt(2)
 
-                    if self.aiTimer >= 96:
-                        self.aiState = 0
-                        self.aiTimer = 0
+                            p2 = NPC(3, sectionX + self.width/2, sectionY + self.height/2, self.section, self.direction)
+                            p2.speedX = 3 * self.direction
+
+                            p3 = NPC(3, sectionX + self.width/2, sectionY + self.height/2, self.section, self.direction)
+                            p3.speedX = 3/math.sqrt(2) * self.direction
+                            p3.speedY = 3/math.sqrt(2)
+
+                            npcs.append(p1)
+                            npcs.append(p2)
+                            npcs.append(p3)
+
+                        self.aiTimer += 1
+
+                        if self.direction == DIR_LEFT:
+                            self.frame = 1
+                        else:
+                            self.frame = 3
+
+                        if self.aiTimer >= 96:
+                            self.aiState = 0
+                            self.aiTimer = 0
+                        
+                        for k, v in enumerate(npcs):
+                            if self.rect.colliderect(v.rect) and self.immuneFrames == 0:
+                                if v.id == 1:
+                                    self.harm(1, 8, WEAPON_TRIPLE_SHOT)
                     
-                    for k, v in enumerate(npcs):
-                        if self.rect.colliderect(v.rect) and self.immuneFrames == 0:
-                            if v.id == 1:
-                                self.harm(1, 8)
+                    if player.immuneFrames == 0:
+                        if self.rect.colliderect(player.rect):
+                            player.harm(1)
+                if self.id == 3:
+                    if self.rect.x + self.width < camera.x or self.rect.x > camera.x + camera.width:
+                        player.bulletsOut -= 1
+                        self.kill()
+                    if camera.isUpdating:
+                        player.bulletsOut -= 1
+                        self.kill()
+                    
+                    if player.immuneFrames == 0:
+                        if self.rect.colliderect(player.rect):
+                            player.harm(2)
                 
-                if player.immuneFrames == 0:
-                    if self.rect.colliderect(player.rect):
-                        player.harm(1)
-            if self.id == 3:
-                if self.rect.x + self.width < camera.x or self.rect.x > camera.x + camera.width:
-                    player.bulletsOut -= 1
-                    self.kill()
-                if camera.isUpdating:
-                    player.bulletsOut -= 1
-                    self.kill()
-                
-                if player.immuneFrames == 0:
-                    if self.rect.colliderect(player.rect):
-                        player.harm(2)
+                self.rect.x += self.speedX
+                self.rect.y += self.speedY
+        
+            if self.immuneFrames > 0:
+                self.immuneFrames -= 1
+
+            # render npcs
+            screenX = self.rect.x - camera.x
+            screenY = self.rect.y - camera.y
+
+            # check which section the npc is in
+            for k, s in enumerate(sections):
+                if self.rect.x >= s.x and self.rect.x <= s.x + s.width:
+                    self.section = k
             
-            self.rect.x += self.speedX
-            self.rect.y += self.speedY
-        
-        if self.immuneFrames > 0:
-            self.immuneFrames -= 1
-
-        # render npcs
-        screenX = self.rect.x - camera.x
-        screenY = self.rect.y - camera.y
-
-        # check which section the npc is in
-        for k, s in enumerate(sections):
-            if self.rect.x >= s.x and self.rect.x <= s.x + s.width:
-                self.section = k
-        
-        if screenX > -16 and screenX < width + 16 and screenY > -16 and screenY < height + 16:
-            # same treatment as the player
-            if self.immuneFrames % 4 == 0:
-                screen.blit(self.gfx, (screenX + npc_cfg.gfxoffsetx[self.id - 1], screenY + npc_cfg.gfxoffsety[self.id - 1]), (0, self.frame * self.gfxheight, self.gfxwidth, self.gfxheight))
-            self.isActive = True
-        else:
-            self.isActive = False # might add exceptions because some enemies can work off-screen
-        #pygame.draw.rect(screen, (255, 0, 0), (screenX, screenY, self.width, self.height), 2)
+            if screenX > -16 and screenX < width + 16 and screenY > -16 and screenY < height + 16:
+                # same treatment as the player
+                if self.immuneFrames % 4 == 0:
+                    screen.blit(self.gfx, (screenX + npc_cfg.gfxoffsetx[self.id - 1], screenY + npc_cfg.gfxoffsety[self.id - 1]), (0, self.frame * self.gfxheight, self.gfxwidth, self.gfxheight))
+                
+                if self.health > 0:
+                    self.isActive = True
+            else:
+                self.isActive = False # might add exceptions because some enemies can work off-screen
+            #pygame.draw.rect(screen, (255, 0, 0), (screenX, screenY, self.width, self.height), 2)
 
 class Camera():
     def __init__(self, startX: int, startY: int) -> None:
@@ -592,6 +617,9 @@ blocks = [
     Block(3, 288, 208, 0),
     Block(3, 304, 208, 0),
     Block(4, 320, 208, 0),
+    Block(12, 256, 160, 0),
+    Block(11, 256, 176, 0),
+    Block(11, 256, 192, 0),
     Block(13, 272, 160, 0),
     Block(13, 288, 160, 0),
     Block(13, 304, 160, 0),
@@ -628,32 +656,35 @@ while True:
     if inGame:
         screen.fill((30, 86, 51))
 
-        for k, b in enumerate(blocks):
-            if not b.foreground:
-                b.update()
-        
-        player.update()
+        if not isPaused:
+            for k, b in enumerate(blocks):
+                if not b.foreground:
+                    b.update()
+            
+            player.update()
 
-        # foreground blocks
-        for k, b in enumerate(blocks):
-            if b.foreground:
-                b.update()
-        
-        for k, v in enumerate(npcs):
-            v.update()
-        
-        # HUDs
-        screen.blit(bars[7], (8, 78 - player.maxHealth * 2), (0, 0, 8, player.maxHealth * 2))
+            # foreground blocks
+            for k, b in enumerate(blocks):
+                if b.foreground:
+                    b.update()
+            
+            for k, v in enumerate(npcs):
+                v.update()
+            
+            # HUDs
+            screen.blit(bars[7], (8, 78 - player.maxHealth * 2), (0, 0, 8, player.maxHealth * 2))
 
-        for i in range(1, player.health + 1):
-            x = 8
-            y = 78 - 2 * i
-            screen.blit(bars[0], (x, y))
-        
-        text = font.render(f"{player.health}", False, (255, 255, 255))
-        screen.blit(text, (8, 88))
-        
-        camera.update()
+            for i in range(1, player.health + 1):
+                x = 8
+                y = 78 - 2 * i
+                screen.blit(bars[0], (x, y))
+            
+            text = font.render(f"{player.health}", False, (255, 255, 255))
+            screen.blit(text, (8, 88))
+            
+            camera.update()
+        else:
+            pass
     
     pygame.display.flip()
     clock.tick(60)
