@@ -5,7 +5,7 @@ class DottedSquare():
 
     def getNumber(self):
         try:
-            self.n = int(input("Input a number (odd number >= 5): "))
+            self.n = int(input("Input a number (odd number >= 5, int): "))
         except ValueError:
             print("Value inserted is not valid. (ERR ID 0)")
             self.getNumber()
@@ -40,5 +40,3 @@ class DottedSquare():
         print(text)
         file.write(f"{text}\n")
         file.close()
-
-a = DottedSquare()
