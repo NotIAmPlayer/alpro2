@@ -23,5 +23,3 @@ class StarPattern():
         print(text)
         file.write(f"{text}\n")
         file.close()
-
-a = StarPattern()

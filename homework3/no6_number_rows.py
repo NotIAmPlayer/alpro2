@@ -77,5 +77,3 @@ class NumberRow():
         print(text)
         file.write(f"{text}\n")
         file.close()
-
-a = NumberRow()

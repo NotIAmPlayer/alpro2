@@ -28,5 +28,3 @@ class FibonacciRow():
         print(text)
         file.write(f"{text}\n")
         file.close()
-
-a = FibonacciRow()
