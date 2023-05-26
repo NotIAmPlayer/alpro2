@@ -13,6 +13,37 @@ gameVars = {
     "isFrozen"  : False, #if frozen, halt every gameplay related things except rendering
 }
 
+control_names = ['left', 'right', 'up', 'down', 'jump', 'shoot', 'change (l)', 'change (r)', 'pause']
+
+controls = {
+    'left'      : pygame.K_LEFT,
+    'right'     : pygame.K_RIGHT,
+    'up'        : pygame.K_UP,
+    'down'      : pygame.K_DOWN,
+    'jump'      : pygame.K_z,
+    'shoot'     : pygame.K_s,
+    'change (l)': pygame.K_c,
+    'change (r)': pygame.K_d,
+    'pause'     : pygame.K_RETURN,
+}
+
+try:
+    file = open("test/option_controls.txt", "r")
+except FileNotFoundError:
+    print("Control configuration file doesn't exist. Creating a new file...")
+
+    file = open("test/option_controls.txt", "w")
+    text = f"{controls['left']};{controls['right']};{controls['up']};{controls['down']};{controls['jump']};{controls['shoot']};{controls['change (l)']};{controls['change (r)']};{controls['pause']}"
+    file.write(text)
+    file.close()
+else:
+    line = file.read()
+    temp = line.split(';')
+
+    for k, v in enumerate(controls):
+        controls[control_names[k]] = int(temp[k])
+    file.close()
+
 pygame.display.set_caption("Xyler Infiltration w10")
 font = pygame.font.Font("pygame project/font/PressStart2P.ttf", 8)
 
@@ -120,36 +151,36 @@ class Player():
     def handleControls(self):
         keypressed = pygame.key.get_pressed()
         if keypressed:
-            if keypressed[pygame.K_RIGHT]:
+            if keypressed[controls['right']]:
                 self.direction = DIR_RIGHT
-            if keypressed[pygame.K_LEFT]:
+            if keypressed[controls['left']]:
                 self.direction = DIR_LEFT
             
             if not self.isClimbing:                    
                 self.speedX = self.direction
 
-                if keypressed[pygame.K_z] and (not self.hasJumped) and self.isOnGround:
+                if keypressed[controls['jump']] and (not self.hasJumped) and self.isOnGround:
                     self.hasJumped = True
                 
-                if keypressed[pygame.K_UP] and self.nearLadder > 0:
+                if keypressed[controls['up']] and self.nearLadder > 0:
                     self.isClimbing = True
             else:
-                if keypressed[pygame.K_UP]:
+                if keypressed[controls['up']]:
                     self.speedY = -1
-                if keypressed[pygame.K_DOWN]:
+                if keypressed[controls['down']]:
                     self.speedY = 1
 
-                if (not keypressed[pygame.K_UP]) and (not keypressed[pygame.K_DOWN]):
+                if (not keypressed[controls['up']]) and (not keypressed[controls['down']]):
                     self.speedY = 0
                 
                 # dismount from ladder
-                if keypressed[pygame.K_z] and not (keypressed[pygame.K_UP] or keypressed[pygame.K_DOWN]):
+                if keypressed[controls['jump']] and not (keypressed[controls['up']] or keypressed[controls['down']]):
                     self.isClimbing = False
 
-            if (not keypressed[pygame.K_RIGHT]) and (not keypressed[pygame.K_LEFT]):
+            if (not keypressed[controls['right']]) and (not keypressed[controls['left']]):
                 self.speedX = 0
             
-            if keypressed[pygame.K_s] and self.attackCooldown == 0 and self.bulletsOut < 3:
+            if keypressed[controls['shoot']] and self.attackCooldown == 0 and self.bulletsOut < 3:
                 self.attackCooldown = 10
                 self.bulletsOut += 1
 
@@ -243,7 +274,7 @@ class Player():
                                         self.speedY = b.rect.top - self.rect.bottom
 
                                 if b.climbable:
-                                    if pygame.key.get_pressed()[pygame.K_DOWN]:
+                                    if pygame.key.get_pressed()[controls['down']]:
                                         self.isClimbing = True
                                         self.speedY = 1
                         
