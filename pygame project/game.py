@@ -256,6 +256,9 @@ class Player():
 
                 if self.immuneFrames > 0:
                     self.immuneFrames -= 1
+                
+                if self.bulletsOut < 0:
+                    self.bulletsOut = 0
 
                 self.rect.x += self.speedX
                 self.rect.y += self.speedY
@@ -330,6 +333,7 @@ npc_cfg = {
     'immuneTo'                  : [[], [], [], [], []],
     'respawnable'               : [False, True, False, False, False],
     'hittable'                  : [False, True, False, False, False],
+    'dropsItems'                : [False, True, False, False, False],
 }
 
 class NPC():
@@ -360,9 +364,13 @@ class NPC():
         self.frameTimer     = 0
         self.imageState     = 0                         # mostly used to sync the weapon pickup to match player color
 
-        #shorthands
+        #shorthands and shortcut vars
         self.width          = self.rect.width
         self.height         = self.rect.height
+
+        self.startX         = self.rect.x
+        self.startY         = self.rect.y
+        self.startDir       = self.direction
 
         #behaviors
         self.nogravity          = npc_cfg["nogravity"][id - 1]
@@ -370,9 +378,40 @@ class NPC():
         self.isWalker           = npc_cfg["isWalker"][id - 1]
         self.weakTo             = npc_cfg["weakTo"][id - 1]
     
+    def reinitialize(self):
+        self.rect.x         = self.startX
+        self.rect.y         = self.startY
+        self.aiState        = 0
+        self.aiTimer        = 0
+        self.isValid        = True                      # if it's alive
+        self.isActive       = True                      # if it's on-screen
+        self.direction      = self.startDir
+        self.speedX         = 0
+        self.speedY         = 0
+        self.isOnGround     = False
+        self.health         = npc_cfg["health"][self.id - 1]    # if the npc relies on health, it won't die until it reaches 0.
+        self.immuneFrames   = 0                                 # invincibility frames (only when > 0)
+        self.frame          = 0                                 # frame in animation
+        self.frameTimer     = 0
+        self.imageState     = 0 
+    
     def kill(self):
         self.isValid = False
         self.isActive = False
+
+        if npc_cfg["dropsItems"][self.id - 1]:
+            rng = random.randint(1, 100)
+
+            if rng > 90:
+                item = NPC(4, self.rect.x, self.rect.y, self.section, self.direction, currentLevel)
+                item.speedY = -4
+
+                currentLevel.npcs.append(item)
+            elif rng > 70:
+                item = NPC(5, self.rect.x, self.rect.y, self.section, self.direction, currentLevel)
+                item.speedY = -4
+
+                currentLevel.npcs.append(item)
 
         if not npc_cfg["respawnable"][self.id - 1]:
             currentLevel.npcs.remove(self)
@@ -389,7 +428,6 @@ class NPC():
                     multiplier = 2 # secondary weakness
 
         self.health = self.health - damage * multiplier
-        print(multiplier)
 
         if self.health <= 0:
             self.kill()
@@ -421,10 +459,22 @@ class NPC():
                             self.frame = 0
                 
                 if npc_cfg["hittable"][self.id - 1]:
+                    valid = True
+
+                    if (self.id == 2 and self.aiState == 0):
+                        valid = False
+                    
                     for k, v in enumerate(currentLevel.npcs):
                         if self.rect.colliderect(v.rect) and self.immuneFrames == 0:
-                            if v.id == 1:
-                                self.harm(1, 8, WEAPON_TRIPLE_SHOT)
+                            if v.id == 1 and v.aiState == 0:
+                                if valid:
+                                    self.harm(1, 8, WEAPON_TRIPLE_SHOT)
+                                else:
+                                    v.direction = -v.direction
+                                    v.speedY = -3/math.sqrt(2)
+                                    v.speedX = 4 * v.direction
+                                    v.aiState = 1
+                            
                     
                 if not self.nogravity:
                     if not self.isOnGround:
@@ -484,13 +534,6 @@ class NPC():
                         
                         if self.aiTimer > 0:
                             self.aiTimer -= 1
-
-                        for k, v in enumerate(currentLevel.npcs):
-                            if self.rect.colliderect(v.rect):
-                                if v.id == 1:
-                                    v.direction = -v.direction
-                                    v.speedY = -3/math.sqrt(2)
-                                    v.speedX = 4 * v.direction
                     else:
                         if self.aiTimer == 8:
                             sectionX = self.rect.x - currentLevel.sections[self.section].x
@@ -661,6 +704,12 @@ class Camera():
         self.dx = 0
         self.dy = 0
 
+        if self.section != currentLevel.player.section:
+            for k, v in enumerate(currentLevel.npcs):
+                if v.section == currentLevel.player.section:
+                    v.isValid = True
+                    v.reinitialize()
+
         self.section = currentLevel.player.section
 
 class Level():
@@ -804,6 +853,8 @@ while True:
         if event.type == pygame.QUIT:
             pygame.quit()
             sys.exit()
+    
+    print(currentLevel.player.bulletsOut)
     
     if gameVars["inGame"]:
         screen.fill((30, 86, 51))
