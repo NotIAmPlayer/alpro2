@@ -1,5 +1,5 @@
 import sys, pygame
-import math
+import math, random
 pygame.init()
 
 size = width, height = 256, 224
@@ -7,8 +7,11 @@ screen = pygame.display.set_mode(size, pygame.SCALED)
 black = (0, 0, 0)
 
 #game variables
-inGame = True
-isPaused = False
+gameVars = {
+    "inGame"    : True,
+    "isPaused"  : False, #is the game not running (as in showing the pause menu)
+    "isFrozen"  : False, #if frozen, halt every gameplay related things except rendering
+}
 
 pygame.display.set_caption("Xyler Infiltration w10")
 font = pygame.font.Font("pygame project/font/PressStart2P.ttf", 8)
@@ -43,9 +46,14 @@ WEAPON_BURNER_WAVE = 4
 WEAPON_LEAF_GUARD = 5
 WEAPON_DOWNPOUR_STORM = 6
 
+HEALTH_ENERGY_SMALL_VALUE = 3
+HEALTH_ENERGY_LARGE_VALUE = 12
+WEAPON_ENERGY_SMALL_VALUE = 3
+WEAPON_ENERGY_LARGE_VALUE = 12
+
 # functions
 def lookForSection(x: int, y: int) -> int:
-    for k, s in enumerate(sections):
+    for k, s in enumerate(currentLevel.sections):
         if x >= s.x and x <= s.x + s.width and y >= s.y and y <= s.y + s.height:
             return k
     
@@ -57,14 +65,18 @@ def math_clamp(num, min, max) -> float:
 # classes
 # used for boundaries in camera or npc behavior
 class Section():
-    def __init__(self, x: int, y: int, width: int, height: int) -> None:
+    def __init__(self, x: int, y: int, width: int, height: int, color: int, bgID: int) -> None:
         self.x          = x
         self.y          = y
         self.width      = width
         self.height     = height
 
+        # background related. color is for the "sky color" of the level, and bgID is what's displayed above the "sky"
+        self.color      = color
+        self.bgID       = bgID
+
 class Player():
-    def __init__(self, x: int, y: int, section: int) -> None:
+    def __init__(self, x: int, y: int, section: int, level) -> None:
         self.gfx            = pygame.image.load("pygame project/test.png")
         self.rect           = self.gfx.get_rect()
         # Gameplay vars
@@ -78,8 +90,8 @@ class Player():
         self.health         = self.maxHealth
         self.weapon         = 0
         # Starting location
-        self.rect.x         = sections[section].x + x
-        self.rect.y         = sections[section].y + y
+        self.rect.x         = level.sections[section].x + x
+        self.rect.y         = level.sections[section].y + y
         # Player states
         self.jumpTimer      = 0
         self.hasJumped      = 0
@@ -90,6 +102,7 @@ class Player():
         self.ladderX        = 0
         self.bulletsOut     = 0
         self.immuneFrames   = 0
+        self.hpToRestore    = 0
         self.hasDied        = False
         self.deathTimer     = 0
 
@@ -100,6 +113,9 @@ class Player():
             self.hasDied = True
         else:
             self.immuneFrames = 90
+    
+    def heal(self, healValue: int):
+        self.hpToRestore = healValue 
     
     def handleControls(self):
         keypressed = pygame.key.get_pressed()
@@ -127,7 +143,7 @@ class Player():
                     self.speedY = 0
                 
                 # dismount from ladder
-                if keypressed[pygame.K_z]:
+                if keypressed[pygame.K_z] and not (keypressed[pygame.K_UP] or keypressed[pygame.K_DOWN]):
                     self.isClimbing = False
 
             if (not keypressed[pygame.K_RIGHT]) and (not keypressed[pygame.K_LEFT]):
@@ -141,135 +157,136 @@ class Player():
                 if self.direction == 1:
                     offset = self.width
                 
-                sectionX = self.rect.x - sections[self.section].x
-                sectionY = self.rect.y - sections[self.section].y
+                sectionX = self.rect.x - currentLevel.sections[self.section].x
+                sectionY = self.rect.y - currentLevel.sections[self.section].y
 
-                npcClass = NPC(1, sectionX + offset, sectionY, self.section, self.direction)
+                npcClass = NPC(1, sectionX + offset, sectionY, self.section, self.direction, currentLevel)
 
-                npcs.append(npcClass)
+                currentLevel.npcs.append(npcClass)
     
     def update(self):
         #self.health = (self.health + 1) % self.maxHealth + 1
-        if not self.hasDied:
-            if not camera.isUpdating:
-                self.handleControls()
-                
-                if self.hasJumped and self.jumpTimer < 16:
-                    self.speedY = -2.2
+        if not gameVars["isFrozen"]:
+            if not self.hasDied:
+                if not currentLevel.camera.isUpdating:
+                    self.handleControls()
+                    
+                    if self.hasJumped and self.jumpTimer < 16:
+                        self.speedY = -2.2
 
-                    self.jumpTimer += 1
-                    self.isOnGround = False
-                else:
-                    if self.speedY < 3:
-                        self.speedY += 0.4
+                        self.jumpTimer += 1
+                        self.isOnGround = False
                     else:
-                        self.speedY = 3
-                    self.isOnGround = False
+                        if self.speedY < 3:
+                            self.speedY += 0.4
+                        else:
+                            self.speedY = 3
+                        self.isOnGround = False
 
-                if self.attackCooldown > 0:
-                    self.attackCooldown -= 1
+                    if self.attackCooldown > 0:
+                        self.attackCooldown -= 1
 
-                if self.isClimbing:
-                    self.width = 16
-                    self.rect.width = self.width
+                    if self.isClimbing:
+                        self.width = 16
+                        self.rect.width = self.width
 
-                    self.rect.x = math_clamp(self.rect.x, self.ladderX, self.ladderX)
+                        self.rect.x = math_clamp(self.rect.x, self.ladderX, self.ladderX)
+                    else:
+                        self.width = 32
+                        self.rect.width = self.width
                 else:
-                    self.width = 32
-                    self.rect.width = self.width
-            else:
-                if camera.moveDir == DIR_LEFT or camera.moveDir == DIR_RIGHT:
-                    self.direction = camera.moveDir
-                    self.speedY = 0
+                    if currentLevel.camera.moveDir == DIR_LEFT or currentLevel.camera.moveDir == DIR_RIGHT:
+                        self.direction = currentLevel.camera.moveDir
+                        self.speedY = 0
 
-                    if self.isOnGround:
-                        self.speedX = self.direction
+                        if self.isOnGround:
+                            self.speedX = self.direction
 
-            for k, b in enumerate(blocks):
-                # ladder collision
-                if b.climbable:
-                    if b.rect.colliderect(self.rect.x, self.rect.y, self.width / 2, self.height):
-                        self.ladderX = b.rect.x
-                        self.nearLadder = 2
-                
-                # horizontal collision
-                if b.solidSide:
-                    if b.rect.colliderect(self.rect.x + self.speedX, self.rect.y, self.width, self.height):
-                        self.speedX = 0
+                for k, b in enumerate(currentLevel.blocks):
+                    # ladder collision
+                    if b.climbable:
+                        if b.rect.colliderect(self.rect.x, self.rect.y, self.width / 2, self.height):
+                            self.ladderX = b.rect.x
+                            self.nearLadder = 2
+                    
+                    # horizontal collision
+                    if b.solidSide:
+                        if b.rect.colliderect(self.rect.x + self.speedX, self.rect.y, self.width, self.height):
+                            self.speedX = 0
 
-                # vertical collision
-                if b.rect.colliderect(self.rect.x, self.rect.y + self.speedY, self.width, self.height):
-                    # below the block
-                    if self.speedY < 0:
-                        if b.solidBottom:
-                            self.speedY = b.rect.bottom - self.rect.top
-                            self.speedY = 0
-                    # above the block
-                    elif self.speedY > 0:
-                        if b.solidTop:
-                            if not self.isClimbing:
-                                if b.solidSide:
-                                    self.speedY = b.rect.top - self.rect.bottom
-                                    # reset jump status
-                                    self.hasJumped = False
-                                    self.jumpTimer = 0
-                                    self.isOnGround = True
-                                else:
-                                    if (player.rect.bottom + player.speedX >= b.rect.top - 2) and (player.rect.centery + (player.height/3) < b.rect.top):
+                    # vertical collision
+                    if b.rect.colliderect(self.rect.x, self.rect.y + self.speedY, self.width, self.height):
+                        # below the block
+                        if self.speedY < 0:
+                            if b.solidBottom:
+                                self.speedY = b.rect.bottom - self.rect.top
+                                self.speedY = 0
+                        # above the block
+                        elif self.speedY > 0:
+                            if b.solidTop:
+                                if not self.isClimbing:
+                                    if b.solidSide:
                                         self.speedY = b.rect.top - self.rect.bottom
                                         # reset jump status
                                         self.hasJumped = False
                                         self.jumpTimer = 0
                                         self.isOnGround = True
-                            else:
-                                if b.solidSide:
-                                    self.speedY = b.rect.top - self.rect.bottom
+                                    else:
+                                        if (self.rect.bottom + self.speedX >= b.rect.top - 2) and (self.rect.centery + (self.height/3) < b.rect.top):
+                                            self.speedY = b.rect.top - self.rect.bottom
+                                            # reset jump status
+                                            self.hasJumped = False
+                                            self.jumpTimer = 0
+                                            self.isOnGround = True
+                                else:
+                                    if b.solidSide:
+                                        self.speedY = b.rect.top - self.rect.bottom
 
-                            if b.climbable:
-                                if pygame.key.get_pressed()[pygame.K_DOWN]:
-                                    self.isClimbing = True
-                                    self.speedY = 1
-                    
-                #dismount from ladders
-                if self.isClimbing:
-                    if b.climbable and b.solidTop:
-                        # make sure no other ladders can affect the player from dismounting
-                        if (self.rect.bottom < b.rect.top + 2) and (self.rect.left == b.rect.left):
-                            self.isClimbing = False
+                                if b.climbable:
+                                    if pygame.key.get_pressed()[pygame.K_DOWN]:
+                                        self.isClimbing = True
+                                        self.speedY = 1
+                        
+                    #dismount from ladders
+                    if self.isClimbing:
+                        if b.climbable and b.solidTop:
+                            # make sure no other ladders can affect the player from dismounting
+                            if (self.rect.bottom < b.rect.top + 2) and (self.rect.left == b.rect.left):
+                                self.isClimbing = False
 
-            if self.immuneFrames > 0:
-                self.immuneFrames -= 1
+                if self.immuneFrames > 0:
+                    self.immuneFrames -= 1
 
-            self.rect.x += self.speedX
-            self.rect.y += self.speedY
+                self.rect.x += self.speedX
+                self.rect.y += self.speedY
 
-        #check which section the player is in
-        for k, s in enumerate(sections):
-            if player.rect.x >= s.x and player.rect.x <= s.x + s.width and player.rect.y >= s.y and player.rect.y <= s.y + s.height:
-                player.section = k
-        
-        if self.nearLadder > 0:
-            self.nearLadder -= 1
-        
-        if lookForSection(player.rect.x, player.rect.y) == -1 and player.rect.y > s.y + s.height:
-            player.harm(player.health)
+            #check which section the player is in
+            for k, s in enumerate(currentLevel.sections):
+                if self.rect.x >= s.x and self.rect.x <= s.x + s.width and self.rect.y >= s.y and self.rect.y <= s.y + s.height:
+                    self.section = k
+            
+            if self.nearLadder > 0:
+                self.nearLadder -= 1
+            
+            if lookForSection(self.rect.x, self.rect.y) == -1 and self.rect.y > s.y + s.height:
+                self.harm(self.health)
         
         # flicker when the player gets damaged
-        if self.immuneFrames % 4 == 0:
-            screen.blit(self.gfx, (self.rect.x - camera.x, self.rect.y - camera.y), (0, 0, self.width, self.height))
+        if self.immuneFrames % 4 == 0 and not self.hasDied:
+            screen.blit(self.gfx, (self.rect.x - currentLevel.camera.x, self.rect.y - currentLevel.camera.y), (0, 0, self.width, self.height))
         
-        pygame.draw.rect(screen, (255, 0, 0), (self.rect.x - camera.x, self.rect.y - camera.y, self.width, self.height), 2)
+        pygame.draw.rect(screen, (255, 0, 0), (self.rect.x - currentLevel.camera.x, self.rect.y - currentLevel.camera.y, self.width, self.height), 2)
 
 class Block():
-    def __init__(self, id: int, x: int, y: int, section: int) -> None:
+    def __init__(self, id: int, x: int, y: int, section: int, level) -> None:
         self.id                 = id
         self.gfx                = pygame.image.load(f"pygame project/block/block-{id}.png")
         self.rect               = self.gfx.get_rect()
         self.width              = self.rect.width
         self.height             = self.rect.height
         # Starting location
-        self.rect.x             = sections[section].x + x
-        self.rect.y             = sections[section].y + y
+        self.rect.x             = level.sections[section].x + x
+        self.rect.y             = level.sections[section].y + y
         # block behavior
         self.solidSide          = False
         self.solidBottom        = False
@@ -288,45 +305,46 @@ class Block():
             self.solidTop       = True
     
     def update(self):
-        screenX = self.rect.x - camera.x
-        screenY = self.rect.y - camera.y
+        screenX = self.rect.x - currentLevel.camera.x
+        screenY = self.rect.y - currentLevel.camera.y
         
         if screenX > -16 and screenX < width + 16 and screenY > -16 and screenY < height + 16:
             screen.blit(self.gfx, (screenX, screenY))
         #pygame.draw.rect(screen, (0, 0, 255), self.rect, 2)
 
-class NPC_config():
-    def __init__(self):
-        self.width              = [8, 16, 8]
-        self.height             = [8, 16, 8]
-        self.gfxwidth           = [8, 18, 8]
-        self.gfxheight          = [8, 18, 8]
-        self.gfxoffsetx         = [0, -1, 0]
-        self.gfxoffsety         = [0, -2, 0]
-        self.frames             = [2, 4, 1]
-        self.framestyle         = [1, 1, 0]
-        self.framedelay         = [1, 1, 1]
-        self.health             = [0, 3, 0]
-        self.nogravity          = [True, False, True]
-        self.noblockcollision   = [True, False, True]
-        self.isWalker           = [False, False, False]
-        self.weakTo             = [[], [], []]
-
-npc_cfg = NPC_config()        
+npc_cfg = {
+    'width'                     : [8, 16, 8, 16, 8],
+    'height'                    : [8, 16, 8, 16, 8],
+    'gfxwidth'                  : [8, 18, 8, 16, 8],
+    'gfxheight'                 : [8, 18, 8, 16, 8],
+    'gfxoffsetX'                : [0, -1, 0, 0, 0],
+    'gfxoffsetY'                : [0, -2, 0, 0, 0],
+    'frames'                    : [2, 4, 1, 3, 3],
+    'framestyle'                : [1, 1, 0, 0, 0],
+    'framedelay'                : [0, 0, 0, 8, 8],
+    'health'                    : [0, 1, 0, 0, 0],
+    'nogravity'                 : [True, False, True, False, False],
+    'noblockcollision'          : [True, False, True, False, False],
+    'isWalker'                  : [False, False, False, False, False],
+    'weakTo'                    : [[], [], [], [], []],
+    'immuneTo'                  : [[], [], [], [], []],
+    'respawnable'               : [False, True, False, False, False],
+    'hittable'                  : [False, True, False, False, False],
+}
 
 class NPC():
-    def __init__(self, id: int, x: int, y: int, section: int, direction: int) -> None:
+    def __init__(self, id: int, x: int, y: int, section: int, direction: int, level) -> None:
         self.id             = id
         self.gfx            = pygame.image.load(f"pygame project/npc/npc-{id}.png")
         self.rect           = self.gfx.get_rect()
-        self.rect.width     = npc_cfg.width[id - 1]
-        self.rect.height    = npc_cfg.height[id - 1]
-        self.gfxwidth       = npc_cfg.gfxwidth[id - 1]
-        self.gfxheight      = npc_cfg.gfxheight[id - 1]
+        self.rect.width     = npc_cfg["width"][id - 1]
+        self.rect.height    = npc_cfg["height"][id - 1]
+        self.gfxwidth       = npc_cfg["gfxwidth"][id - 1]
+        self.gfxheight      = npc_cfg["gfxheight"][id - 1]
         # Starting location
         self.section        = section
-        self.rect.x         = sections[section].x + x
-        self.rect.y         = sections[section].y + y
+        self.rect.x         = level.sections[section].x + x
+        self.rect.y         = level.sections[section].y + y
         # NPC vars
         self.aiState        = 0
         self.aiTimer        = 0
@@ -335,27 +353,43 @@ class NPC():
         self.direction      = direction
         self.speedX         = 0
         self.speedY         = 0
-        self.health         = npc_cfg.health[id - 1]    # if the npc relies on health, it won't die until it reaches 0.
+        self.isOnGround     = False
+        self.health         = npc_cfg["health"][id - 1] # if the npc relies on health, it won't die until it reaches 0.
         self.immuneFrames   = 0                         # invincibility frames (only when > 0)
         self.frame          = 0                         # frame in animation
         self.frameTimer     = 0
+        self.imageState     = 0                         # mostly used to sync the weapon pickup to match player color
 
         #shorthands
         self.width          = self.rect.width
         self.height         = self.rect.height
 
         #behaviors
-        self.nogravity          = npc_cfg.nogravity[id - 1]
-        self.noblockcollision   = npc_cfg.noblockcollision[id - 1]
-        self.isWalker           = npc_cfg.isWalker[id - 1]
-        self.weakTo             = npc_cfg.weakTo[id - 1]
+        self.nogravity          = npc_cfg["nogravity"][id - 1]
+        self.noblockcollision   = npc_cfg["noblockcollision"][id - 1]
+        self.isWalker           = npc_cfg["isWalker"][id - 1]
+        self.weakTo             = npc_cfg["weakTo"][id - 1]
     
     def kill(self):
         self.isValid = False
         self.isActive = False
+
+        if not npc_cfg["respawnable"][self.id - 1]:
+            currentLevel.npcs.remove(self)
     
     def harm(self, damage: int, invincibleFrames: int, damageType):
-        self.health = self.health - damage
+        multiplier = 1
+        if damageType in npc_cfg["immuneTo"][self.id - 1]:
+            multiplier = 0
+        else:
+            if npc_cfg["weakTo"][self.id - 1] != []:
+                if damageType == npc_cfg["weakTo"][self.id - 1][0]:
+                    multiplier = 4 # primary weakness
+                elif damageType == npc_cfg["weakTo"][self.id - 1][1]:
+                    multiplier = 2 # secondary weakness
+
+        self.health = self.health - damage * multiplier
+        print(multiplier)
 
         if self.health <= 0:
             self.kill()
@@ -366,14 +400,67 @@ class NPC():
         # the actual npc behavior
         if self.isValid:
             if self.isActive:
+                dirOffset = 1
+
+                if self.direction == DIR_RIGHT: dirOffset = 2
+
+                # behavior codes (shared with multiple npcs)
+                if npc_cfg["frames"][self.id - 1] > 1 and npc_cfg["framedelay"][self.id - 1] != 0:
+                    self.frameTimer += 1
+
+                    if self.frameTimer % npc_cfg["framedelay"][self.id - 1] == 0:
+                        self.frame += 1
+                    
+                    if self.frame >= npc_cfg["frames"][self.id - 1]//dirOffset:
+                        if npc_cfg["framestyle"][self.id - 1] == 1: #framestyle 1 (different left-right)
+                            if self.direction == DIR_LEFT:
+                                self.frame = 0
+                            else:
+                                self.frame = npc_cfg["frames"][self.id - 1]//dirOffset
+                        elif npc_cfg["framestyle"][self.id - 1] == 0: #framestyle 0 (same left-right)
+                            self.frame = 0
+                
+                if npc_cfg["hittable"][self.id - 1]:
+                    for k, v in enumerate(currentLevel.npcs):
+                        if self.rect.colliderect(v.rect) and self.immuneFrames == 0:
+                            if v.id == 1:
+                                self.harm(1, 8, WEAPON_TRIPLE_SHOT)
+                    
+                if not self.nogravity:
+                    if not self.isOnGround:
+                        if self.speedY < 3:
+                            self.speedY += 0.4
+                        else:
+                            self.speedY = 3
+                
+                if not self.noblockcollision:
+                    for k, b in enumerate(currentLevel.blocks):
+                        if b.solidSide:
+                            if b.rect.colliderect(self.rect.x + self.speedX, self.rect.y, self.width, self.height):
+                                self.speedX = 0
+
+                                if self.isWalker:
+                                    self.direction = -self.direction
+                            
+                        if b.solidTop:
+                            if b.rect.colliderect(self.rect.x, self.rect.y + self.speedY, self.width, self.height):
+                                if self.speedY < 0:
+                                    if b.solidBottom:
+                                        self.speedY = b.rect.bottom - self.rect.top
+                                        self.speedY = 0
+                                elif self.speedY > 0:
+                                    self.speedY = b.rect.top - self.rect.bottom
+                                    self.isOnGround = True
+                    
+                # individual npc codes
                 if self.id == 1:
                     self.speedX = self.direction * 4
 
-                    if self.rect.x + self.width < camera.x or self.rect.x > camera.x + camera.width:
-                        player.bulletsOut -= 1
+                    if self.rect.x + self.width < currentLevel.camera.x or self.rect.x > currentLevel.camera.x + currentLevel.camera.width:
+                        currentLevel.player.bulletsOut -= 1
                         self.kill()
-                    if camera.isUpdating:
-                        player.bulletsOut -= 1
+                    if currentLevel.camera.isUpdating:
+                        currentLevel.player.bulletsOut -= 1
                         self.kill()
                     
                     if self.direction == DIR_LEFT:
@@ -382,10 +469,10 @@ class NPC():
                         self.frame = 1
                 if self.id == 2:
                     if self.aiState == 0:
-                        if math.fabs(player.rect.centerx - self.rect.centerx) <= 80:
+                        if math.fabs(currentLevel.player.rect.centerx - self.rect.centerx) <= 80 and self.aiTimer == 0:
                             self.aiState = 1
                         
-                        if player.rect.centerx - self.rect.centerx < 0:
+                        if currentLevel.player.rect.centerx - self.rect.centerx < 0:
                             self.direction = DIR_LEFT
                         else:
                             self.direction = DIR_RIGHT
@@ -394,8 +481,11 @@ class NPC():
                             self.frame = 0
                         else:
                             self.frame = 2
+                        
+                        if self.aiTimer > 0:
+                            self.aiTimer -= 1
 
-                        for k, v in enumerate(npcs):
+                        for k, v in enumerate(currentLevel.npcs):
                             if self.rect.colliderect(v.rect):
                                 if v.id == 1:
                                     v.direction = -v.direction
@@ -403,23 +493,23 @@ class NPC():
                                     v.speedX = 4 * v.direction
                     else:
                         if self.aiTimer == 8:
-                            sectionX = self.rect.x - sections[self.section].x
-                            sectionY = self.rect.y - sections[self.section].y
+                            sectionX = self.rect.x - currentLevel.sections[self.section].x
+                            sectionY = self.rect.y - currentLevel.sections[self.section].y
                             
-                            p1 = NPC(3, sectionX + self.width/2, sectionY + self.height/2, self.section, self.direction)
+                            p1 = NPC(3, sectionX + self.width/2, sectionY + self.height/2, self.section, self.direction, currentLevel)
                             p1.speedX = 3/math.sqrt(2) * self.direction
                             p1.speedY = -3/math.sqrt(2)
 
-                            p2 = NPC(3, sectionX + self.width/2, sectionY + self.height/2, self.section, self.direction)
+                            p2 = NPC(3, sectionX + self.width/2, sectionY + self.height/2, self.section, self.direction, currentLevel)
                             p2.speedX = 3 * self.direction
 
-                            p3 = NPC(3, sectionX + self.width/2, sectionY + self.height/2, self.section, self.direction)
+                            p3 = NPC(3, sectionX + self.width/2, sectionY + self.height/2, self.section, self.direction, currentLevel)
                             p3.speedX = 3/math.sqrt(2) * self.direction
                             p3.speedY = 3/math.sqrt(2)
 
-                            npcs.append(p1)
-                            npcs.append(p2)
-                            npcs.append(p3)
+                            currentLevel.npcs.append(p1)
+                            currentLevel.npcs.append(p2)
+                            currentLevel.npcs.append(p3)
 
                         self.aiTimer += 1
 
@@ -430,27 +520,30 @@ class NPC():
 
                         if self.aiTimer >= 96:
                             self.aiState = 0
-                            self.aiTimer = 0
-                        
-                        for k, v in enumerate(npcs):
-                            if self.rect.colliderect(v.rect) and self.immuneFrames == 0:
-                                if v.id == 1:
-                                    self.harm(1, 8, WEAPON_TRIPLE_SHOT)
+                            self.aiTimer = 10
                     
-                    if player.immuneFrames == 0:
-                        if self.rect.colliderect(player.rect):
-                            player.harm(1)
+                    if currentLevel.player.immuneFrames == 0:
+                        if self.rect.colliderect(currentLevel.player.rect):
+                            currentLevel.player.harm(1)
                 if self.id == 3:
-                    if self.rect.x + self.width < camera.x or self.rect.x > camera.x + camera.width:
-                        player.bulletsOut -= 1
+                    if self.rect.x + self.width < currentLevel.camera.x or self.rect.x > currentLevel.camera.x + currentLevel.camera.width:
+                        currentLevel.player.bulletsOut -= 1
                         self.kill()
-                    if camera.isUpdating:
-                        player.bulletsOut -= 1
+                    if currentLevel.camera.isUpdating:
+                        currentLevel.player.bulletsOut -= 1
                         self.kill()
                     
-                    if player.immuneFrames == 0:
-                        if self.rect.colliderect(player.rect):
-                            player.harm(2)
+                    if currentLevel.player.immuneFrames == 0:
+                        if self.rect.colliderect(currentLevel.player.rect):
+                            currentLevel.player.harm(2)
+                if self.id == 4:
+                    if self.rect.colliderect(currentLevel.player.rect):
+                        currentLevel.player.heal(HEALTH_ENERGY_LARGE_VALUE)
+                        self.kill()
+                if self.id == 5:
+                    if self.rect.colliderect(currentLevel.player.rect):
+                        currentLevel.player.heal(HEALTH_ENERGY_SMALL_VALUE)
+                        self.kill()
                 
                 self.rect.x += self.speedX
                 self.rect.y += self.speedY
@@ -459,27 +552,35 @@ class NPC():
                 self.immuneFrames -= 1
 
             # render npcs
-            screenX = self.rect.x - camera.x
-            screenY = self.rect.y - camera.y
+            screenX = self.rect.x - currentLevel.camera.x
+            screenY = self.rect.y - currentLevel.camera.y
 
             # check which section the npc is in
-            for k, s in enumerate(sections):
+            for k, s in enumerate(currentLevel.sections):
                 if self.rect.x >= s.x and self.rect.x <= s.x + s.width:
                     self.section = k
             
             if screenX > -16 and screenX < width + 16 and screenY > -16 and screenY < height + 16:
                 # same treatment as the player
                 if self.immuneFrames % 4 == 0:
-                    screen.blit(self.gfx, (screenX + npc_cfg.gfxoffsetx[self.id - 1], screenY + npc_cfg.gfxoffsety[self.id - 1]), (0, self.frame * self.gfxheight, self.gfxwidth, self.gfxheight))
-                
-                if self.health > 0:
+                    screen.blit(self.gfx, (screenX + npc_cfg["gfxoffsetX"][self.id - 1], screenY + npc_cfg["gfxoffsetY"][self.id - 1]), (self.gfxwidth * self.imageState, self.frame * self.gfxheight, self.gfxwidth, self.gfxheight))
+                if self.health > 0 or self.health == npc_cfg["health"][self.id - 1]:
                     self.isActive = True
+
+                # Debugging materials
+                # text = font.render(f"{self.frame}", False, (255, 255, 255))
+                # screen.blit(text, (screenX, screenY))
+                # pygame.draw.rect(screen, (255, 0, 0), (screenX, screenY, self.width, self.height), 2)
             else:
+                # reset some stuff
                 self.isActive = False # might add exceptions because some enemies can work off-screen
-            #pygame.draw.rect(screen, (255, 0, 0), (screenX, screenY, self.width, self.height), 2)
+                self.frame = 0
+                self.frameTimer = 0
+                self.aiTimer = 0
+                self.aiState = 0
 
 class Camera():
-    def __init__(self, startX: int, startY: int) -> None:
+    def __init__(self, startX: int, startY: int, level) -> None:
         self.x          = startX
         self.y          = startY
         self.width      = width
@@ -491,7 +592,7 @@ class Camera():
         self.targetY    = 0
         self.moveDir    = 0
         self.isUpdating = False
-        self.section    = player.section
+        self.section    = level.player.section
     
     def update(self):
         '''
@@ -548,103 +649,154 @@ class Camera():
         else:
             self.section = player.section
         '''
-        if player.rect.x >= self.x + (self.width / 2) and player.speedX > 0:
-            self.dx = player.speedX
-        if player.rect.x <= self.x + (self.width / 2) and player.speedX < 0:
-            self.dx = player.speedX
+        if currentLevel.player.rect.x >= self.x + (self.width / 2) and currentLevel.player.speedX > 0:
+            self.dx = currentLevel.player.speedX
+        if currentLevel.player.rect.x <= self.x + (self.width / 2) and currentLevel.player.speedX < 0:
+            self.dx = currentLevel.player.speedX
         
         self.x += self.dx
         self.y += self.dy
-        self.x = math_clamp(self.x, sections[player.section].x, sections[player.section].x + sections[player.section].width - self.width)
-        self.y = math_clamp(self.y, sections[player.section].y, sections[player.section].y + sections[player.section].height - self.height)
+        self.x = math_clamp(self.x, currentLevel.sections[currentLevel.player.section].x, currentLevel.sections[currentLevel.player.section].x + currentLevel.sections[currentLevel.player.section].width - self.width)
+        self.y = math_clamp(self.y, currentLevel.sections[currentLevel.player.section].y, currentLevel.sections[currentLevel.player.section].y + currentLevel.sections[currentLevel.player.section].height - self.height)
         self.dx = 0
         self.dy = 0
 
-        self.section = player.section
+        self.section = currentLevel.player.section
 
-# gameplay objects
-sections = [
-    Section(0, 0, width * 2, height),
-    Section(-width, 0, width, height),
-]
+class Level():
+    sections = []
+    blocks = []
+    npcs = []
+    healTimer = 0
 
-blocks = [
-    #Block(3, 208, 192, 1),
-    Block(3, 224, 192, 1),
-    Block(3, 240, 192, 1),
-    Block(3, 0, 192, 0),
-    Block(3, 16, 192, 0),
-    Block(3, 32, 192, 0),
-    Block(1, 48, 144, 0),
-    Block(1, 48, 160, 0),
-    Block(1, 48, 176, 0),
-    Block(13, 64, 160, 0),
-    Block(13, 80, 160, 0),
-    Block(3, 48, 192, 0),
-    Block(3, 64, 192, 0),
-    Block(3, 80, 192, 0),
-    Block(4, 96, 192, 0),
-    Block(1, 64, 64, 0),
-    Block(1, 80, 64, 0),
-    Block(1, 96, 64, 0),
-    Block(3, 112, 208, 0),
-    #Block(1, 128, 64, 0),
-    Block(12, 112, 64, 0),
-    Block(11, 112, 80, 0),
-    Block(11, 112, 96, 0),
-    Block(11, 112, 112, 0),
-    Block(11, 112, 128, 0),
-    Block(11, 112, 144, 0),
-    Block(11, 112, 160, 0),
-    Block(11, 112, 176, 0),
-    Block(11, 112, 192, 0),
-    Block(1, 176, 64, 0),
-    Block(1, 192, 64, 0),
-    Block(1, 208, 64, 0),
-    Block(1, 224, 64, 0),
-    Block(1, 240, 64, 0),
-    Block(1, 256, 64, 0),
-    Block(1, 272, 64, 0),
-    Block(1, 288, 64, 0),
-    Block(1, 304, 64, 0),
-    Block(1, 320, 64, 0),
-    Block(4, 128, 208, 0),
-    Block(2, 208, 208, 0),
-    Block(3, 224, 208, 0),
-    Block(3, 240, 208, 0),
-    Block(3, 256, 208, 0),
-    Block(3, 272, 208, 0),
-    Block(3, 288, 208, 0),
-    Block(3, 304, 208, 0),
-    Block(4, 320, 208, 0),
-    Block(12, 256, 160, 0),
-    Block(11, 256, 176, 0),
-    Block(11, 256, 192, 0),
-    Block(13, 272, 160, 0),
-    Block(13, 288, 160, 0),
-    Block(13, 304, 160, 0),
-    Block(13, 320, 160, 0),
-    Block(1, 336, 64, 0),
-    Block(1, 352, 64, 0),
-    Block(1, 368, 64, 0),
-    Block(1, 384, 64, 0),
-    Block(1, 400, 64, 0),
-    Block(1, 416, 64, 0),
-    Block(1, 432, 64, 0),
-    Block(1, 448, 64, 0),
-    Block(1, 464, 64, 0),
-    Block(1, 480, 64, 0),
-    Block(1, 496, 64, 0),
-    Block(1, 496, 0, 0),
-    Block(1, 496, 16, 0),
-    Block(1, 496, 32, 0),
-    Block(1, 496, 48, 0),
-]
+    def __init__(self, filename):
+        self.levelName = filename # we may need this later
+        file = open(f"pygame project/{filename}.lvl", "r")
+        self.readmode = ""
 
-npcs = [NPC(2, 304, 144, 0, DIR_LEFT)]
+        for line in file:
+            if line == "[SECTIONS]\n":
+                self.readmode = "S"
+                continue
+            elif line == "[PLAYER]\n":
+                self.readmode = "P"
+                continue
+            elif line == "[BLOCKS]\n":
+                self.readmode = "B"
+                continue
+            elif line == "[NPC]\n":
+                self.readmode = "N"
+                continue
+            
+            if line != "\n":
+                if self.readmode == "S":
+                    parameters = {
+                        'x': 0,
+                        'y': 0,
+                        'width': 0,
+                        'height': 0,
+                        'colorR': 0,
+                        'colorG': 0,
+                        'colorB': 0,
+                    }
+                    temp = line.split(';')
+                    parameters["x"] = int(temp[0])
+                    parameters["y"] = int(temp[1])
+                    parameters["width"] = int(temp[2])
+                    parameters["height"] = int(temp[3])
+                    parameters["colorR"] = int(temp[4])
+                    parameters["colorG"] = int(temp[5])
+                    parameters["colorB"] = int(temp[6])
+                    
+                    sectionClass = Section(parameters["x"], parameters["y"], parameters["width"], parameters["height"], (parameters["colorR"], parameters["colorG"], parameters["colorB"]), 0)
+                    self.sections.append(sectionClass)
+                elif self.readmode == "P":
+                    parameters = {
+                        'x': 0,
+                        'y': 0,
+                        'section': 0,
+                    }
+                    temp = line.split(';')
+                    parameters["x"] = int(temp[0])
+                    parameters["y"] = int(temp[1])
+                    parameters["section"] = int(temp[2])
+                    
+                    self.player = Player(parameters["x"], parameters["y"], parameters["section"], self)
+                    self.camera = Camera(self.player.rect.centerx - 128, self.player.rect.centery - 96, self)
+                elif self.readmode == "B":
+                    parameters = {
+                        'id': 0,
+                        'x': 0,
+                        'y': 0,
+                        'section': 0,
+                    }
 
-player = Player(16, 144, 0)
-camera = Camera(0, 0)
+                    temp = line.split(';')
+                    parameters["id"] = int(temp[0])
+                    parameters["x"] = int(temp[1])
+                    parameters["y"] = int(temp[2])
+                    parameters["section"] = int(temp[3])
+
+                    blockClass = Block(parameters["id"], parameters["x"], parameters["y"], parameters["section"], self)
+                    self.blocks.append(blockClass)
+                elif self.readmode == "N":
+                    parameters = {
+                        'id': 0,
+                        'x': 0,
+                        'y': 0,
+                        'section': 0,
+                        'direction': 0,
+                    }
+
+                    temp = line.split(';')
+                    parameters["id"] = int(temp[0])
+                    parameters["x"] = int(temp[1])
+                    parameters["y"] = int(temp[2])
+                    parameters["section"] = int(temp[3])
+                    parameters["direction"] = int(temp[4])
+
+                    npcClass = NPC(parameters["id"], parameters["x"], parameters["y"], parameters["section"], parameters["direction"], self)
+                    self.npcs.append(npcClass)
+
+        file.close()
+    
+    def runLevel(self):
+        for k, s in enumerate(self.sections):
+            if self.camera.section == k:
+                screen.fill(s.color)
+
+        for k, b in enumerate(self.blocks):
+            if not b.foreground:
+                b.update()
+        
+        self.player.update()
+        if self.player.hpToRestore > 0:
+            gameVars["isFrozen"] = True
+            self.healTimer += 1
+
+            # increase it one by one
+            if self.healTimer % 4 == 0:
+                if self.player.health < self.player.maxHealth:
+                    self.player.health += 1
+                    self.player.hpToRestore -= 1
+
+                    if self.player.hpToRestore == 0:
+                        self.player.hpToRestore = 0
+                        gameVars["isFrozen"] = False
+                else:
+                    self.player.hpToRestore = 0
+                    gameVars["isFrozen"] = False
+
+        # foreground blocks
+        for k, b in enumerate(self.blocks):
+            if b.foreground:
+                b.update()
+        
+        for k, v in enumerate(self.npcs):
+            v.update()
+
+# everything is now in this one level class
+currentLevel = Level("test_level")
 clock = pygame.time.Clock()
 
 while True:
@@ -653,36 +805,24 @@ while True:
             pygame.quit()
             sys.exit()
     
-    if inGame:
+    if gameVars["inGame"]:
         screen.fill((30, 86, 51))
 
-        if not isPaused:
-            for k, b in enumerate(blocks):
-                if not b.foreground:
-                    b.update()
-            
-            player.update()
-
-            # foreground blocks
-            for k, b in enumerate(blocks):
-                if b.foreground:
-                    b.update()
-            
-            for k, v in enumerate(npcs):
-                v.update()
+        if not gameVars["isPaused"]:
+            currentLevel.runLevel()
             
             # HUDs
-            screen.blit(bars[7], (8, 78 - player.maxHealth * 2), (0, 0, 8, player.maxHealth * 2))
+            screen.blit(bars[7], (8, 78 - currentLevel.player.maxHealth * 2), (0, 0, 8, currentLevel.player.maxHealth * 2))
 
-            for i in range(1, player.health + 1):
+            for i in range(1, currentLevel.player.health + 1):
                 x = 8
                 y = 78 - 2 * i
                 screen.blit(bars[0], (x, y))
             
-            text = font.render(f"{player.health}", False, (255, 255, 255))
+            text = font.render(f"{currentLevel.player.health}", False, (255, 255, 255))
             screen.blit(text, (8, 88))
             
-            camera.update()
+            currentLevel.camera.update()
         else:
             pass
     
