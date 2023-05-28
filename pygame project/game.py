@@ -21,6 +21,9 @@ gameData = {
     "energyUp4_taken"   : False,
     "energyUp5_taken"   : False,
     "energyUp6_taken"   : False,
+    "hasFlashDash"      : False,
+    "hasWallCling"      : False,
+    "hasPowerPlasma"    : False,
     "defeatedVasudha"   : False,
     "defeatedAnguille"  : False,
     "defeatedZephuros"  : False,
@@ -290,14 +293,18 @@ class Player():
                     self.isClimbing = True
             else:
                 self.animState = ANIM_CLIMB
-                if keypressed[pygame.K_UP]:
-                    self.speedY = -1
-                    
-                    self.frameTimer += 1
-                if keypressed[pygame.K_DOWN]:
-                    self.speedY = 1
+                if self.chargeTimer == 0:
+                    if keypressed[pygame.K_UP]:
+                        self.speedY = -1
+                        
+                        self.frameTimer += 1
+                    if keypressed[pygame.K_DOWN]:
+                        self.speedY = 1
 
-                    self.frameTimer -= 1
+                        self.frameTimer -= 1
+                else:
+                    if keypressed[pygame.K_UP] or keypressed[pygame.K_DOWN]:
+                        self.speedY = 0
 
                 if (not keypressed[pygame.K_UP]) and (not keypressed[pygame.K_DOWN]):
                     self.speedY = 0
@@ -550,6 +557,9 @@ class Player():
                             self.animState = ANIM_FALL
                         elif self.speedY < 0:
                             self.animState = ANIM_JUMP
+                    
+                    if self.isOnGround:
+                        self.animState = ANIM_SHOOT
                 elif self.animState == ANIM_SHOOT_CLIMB:
                     self.frame = 17
 
@@ -560,6 +570,12 @@ class Player():
                         self.frameTimer -= 1
                     else:
                         self.animState = ANIM_CLIMB
+                    
+                    if not self.isClimbing:
+                        if self.isOnGround:
+                            self.animState = ANIM_SHOOT
+                        else:
+                            self.animState = ANIM_SHOOT_MIDAIR
 
                 if self.immuneFrames > 0:
                     self.immuneFrames -= 1
