@@ -437,6 +437,8 @@ class Player():
                 # dismount from ladder
                 if keypressed[controls['jump']] and not (keypressed[controls['up']] or keypressed[controls['down']]):
                     self.isClimbing = False
+                    self.hasJumped = True
+                    self.jumpTimer = 17
 
             if (not keypressed[controls['right']]) and (not keypressed[controls['left']]):
                 self.speedX = 0
@@ -787,21 +789,26 @@ class Player():
                     self.harm(self.health)
         
         # flicker when the player gets damaged
-        if self.immuneFrames % 4 == 0 and not self.hasDied:
-            offsetX = 14
-            offsetY = 8
+        if not self.hasDied:
+            # character draw
+            if self.immuneFrames % 4 == 0:
+                offsetX = 14
+                offsetY = 8
 
-            if self.animState == ANIM_CLIMB or self.animState == ANIM_SHOOT_CLIMB:
-                offsetX = offsetX + 3
+                if self.animState == ANIM_CLIMB or self.animState == ANIM_SHOOT_CLIMB:
+                    offsetX = offsetX + 3
+                
+                screen.blit(self.gfx, (self.rect.x - currentLevel.camera.x - offsetX, self.rect.y - currentLevel.camera.y - offsetY), (49 * self.animOffset, 40 * self.frame, 49, 40))
             
-            screen.blit(self.gfx, (self.rect.x - currentLevel.camera.x - offsetX, self.rect.y - currentLevel.camera.y - offsetY), (49 * self.animOffset, 40 * self.frame, 49, 40))
-        
-        if self.chargeTimer != 0 and self.chargeFxState > 0:
-            offsetX = 6
+            # charge effect draw
+            if self.chargeTimer != 0 and self.chargeFxState > 0:
+                offsetX = 6
 
-            screen.blit(chargeEffects[self.chargeFxState - 1], (self.rect.x - currentLevel.camera.x - offsetX, self.rect.y - currentLevel.camera.y), (0, 32 * self.chargeFxFrame, 32, 32))
+                screen.blit(chargeEffects[self.chargeFxState - 1], (self.rect.x - currentLevel.camera.x - offsetX, self.rect.y - currentLevel.camera.y), (0, 32 * self.chargeFxFrame, 32, 32))
 
-        #pygame.draw.rect(screen, (255, 0, 0), (self.rect.x - currentLevel.camera.x, self.rect.y - currentLevel.camera.y, self.width, self.height), 2)
+        # debug
+        # print(self.rect.x, self.rect.y)
+        # pygame.draw.rect(screen, (255, 0, 0), (self.rect.x - currentLevel.camera.x, self.rect.y - currentLevel.camera.y, self.width, self.height), 2)
 
 class Block():
     def __init__(self, id: int, x: int, y: int, section: int, level) -> None:
@@ -851,7 +858,7 @@ npc_cfg = {
     'health'                    : [0, 1, 0, 0, 0, 4, 0, 0],
     'nogravity'                 : [True, False, True, False, False, True, True, False],
     'noblockcollision'          : [True, False, True, False, False, False, True, False],
-    'isWalker'                  : [False, False, False, False, False, True, False, False],
+    'isWalker'                  : [False, False, False, False, False, False, False, False],
     'weakTo'                    : [[], [], [], [], [], [], [], []],
     'immuneTo'                  : [[], [], [], [], [], [], [], []],
     'respawnable'               : [False, True, False, False, False, True, False, False],
@@ -887,6 +894,12 @@ class NPC():
         self.frameTimer     = 0
         self.imageState     = 0                         # mostly used to sync the weapon pickup to match player color
         self.origin         = None
+        # "Free" NPC vars (for AI purposes, can be reassigned as string, array, etc)
+        self.var1           = 0
+        self.var2           = 0
+        self.var3           = 0
+        self.var4           = 0
+        self.var5           = 0
 
         #shorthands and shortcut vars
         self.width          = self.rect.width
@@ -917,7 +930,13 @@ class NPC():
         self.immuneFrames   = 0                                 # invincibility frames (only when > 0)
         self.frame          = 0                                 # frame in animation
         self.frameTimer     = 0
-        self.imageState     = 0 
+        self.imageState     = 0
+
+        self.var1           = 0
+        self.var2           = 0
+        self.var3           = 0
+        self.var4           = 0
+        self.var5           = 0
     
     def kill(self):
         self.isValid = False
@@ -1055,7 +1074,7 @@ class NPC():
                                     self.isOnGround = True
                     
                 # individual npc codes
-                if self.id == 1:
+                if self.id == 1: # PLAYER BULLET
                     self.speedX = self.direction * 4
 
                     if self.rect.x + self.width < currentLevel.camera.x or self.rect.x > currentLevel.camera.x + currentLevel.camera.width:
@@ -1069,7 +1088,7 @@ class NPC():
                         self.frame = 0
                     else:
                         self.frame = 1
-                if self.id == 2:
+                if self.id == 2: # TRACKER
                     if self.aiState == 0:
                         if math.fabs(currentLevel.player.rect.centerx - self.rect.centerx) <= 80 and self.aiTimer == 0 and not currentLevel.player.hasDied:
                             self.aiState = 1
@@ -1090,24 +1109,27 @@ class NPC():
                         if self.aiTimer == 8:
                             sectionX = self.rect.x - currentLevel.sections[self.section].x
                             sectionY = self.rect.y - currentLevel.sections[self.section].y
-                            
-                            p1 = NPC(3, sectionX + self.width/2, sectionY + self.height/2, self.section, self.direction, currentLevel)
-                            p1.speedX = 3/math.sqrt(2) * self.direction
-                            p1.speedY = -3/math.sqrt(2)
-                            p1.origin = self
 
-                            p2 = NPC(3, sectionX + self.width/2, sectionY + self.height/2, self.section, self.direction, currentLevel)
-                            p2.speedX = 3 * self.direction
-                            p2.origin = self
+                            # initialize angle
+                            _x = (currentLevel.player.rect.x + 0.5 * currentLevel.player.width) - (self.rect.x + 0.5 * self.width)
+                            _y = (currentLevel.player.rect.y + 0.5 * currentLevel.player.height) - (self.rect.y + 0.5 * self.height)
+                            _angle = math.degrees(math.atan(_y/_x))
 
-                            p3 = NPC(3, sectionX + self.width/2, sectionY + self.height/2, self.section, self.direction, currentLevel)
-                            p3.speedX = 3/math.sqrt(2) * self.direction
-                            p3.speedY = 3/math.sqrt(2)
-                            p3.origin = self
+                            _vector = [self.direction, 0]
 
-                            currentLevel.npcs.append(p1)
-                            currentLevel.npcs.append(p2)
-                            currentLevel.npcs.append(p3)
+                            # rudimentary vector rotation
+                            _rad = math.radians(_angle)
+                            _sinrad = math.sin(_rad)
+                            _cosrad = math.cos(_rad)
+
+                            _vector = [_vector[0] * _cosrad - _vector[1] * _sinrad, _vector[0] * _sinrad + _vector[1] * _cosrad]
+
+                            p = NPC(3, sectionX + self.width/2, sectionY + self.height/2, self.section, self.direction, currentLevel)
+                            p.speedX = 3 * _vector[0]
+                            p.speedY = 3 * _vector[1]
+                            p.origin = self
+
+                            currentLevel.npcs.append(p)
 
                         self.aiTimer += 1
 
@@ -1123,22 +1145,20 @@ class NPC():
                     if currentLevel.player.immuneFrames == 0 and currentLevel.player.dashTimer == 0:
                         if self.rect.colliderect(currentLevel.player.rect):
                             currentLevel.player.harm(1)
-                if self.id == 3:
+                if self.id == 3: # TRACKER BULLET
                     if self.rect.x + self.width < currentLevel.camera.x or self.rect.x > currentLevel.camera.x + currentLevel.camera.width:
-                        currentLevel.player.bulletsOut -= 1
                         self.kill()
                     if currentLevel.camera.isUpdating:
-                        currentLevel.player.bulletsOut -= 1
                         self.kill()
                     
                     if currentLevel.player.immuneFrames == 0 and currentLevel.player.dashTimer == 0:
                         if self.rect.colliderect(currentLevel.player.rect):
                             currentLevel.player.harm(2)
-                if self.id == 4:
+                if self.id == 4: # HEALTH ENERGY (BIG)
                     if self.rect.colliderect(currentLevel.player.rect):
                         currentLevel.player.heal(HEALTH_ENERGY_LARGE_VALUE)
                         self.kill()
-                if self.id == 5:
+                if self.id == 5: # HEALTH ENERGY (SMALL)
                     if self.rect.colliderect(currentLevel.player.rect):
                         currentLevel.player.heal(HEALTH_ENERGY_SMALL_VALUE)
                         self.kill()
@@ -1165,17 +1185,27 @@ class NPC():
                         if (self.frame > 1 and self.direction == DIR_LEFT) or (self.frame > 6 and self.direction == DIR_RIGHT):
                             self.frame = int(self.direction == DIR_RIGHT) * 5
                     else:
+                        _frameTable = [[2, 3, 4, 8, 7], [7, 8, 9, 3, 2]]
+                        offset = 0
+                        if self.direction == DIR_RIGHT:
+                            offset = 1
+                        
                         self.speedX = 0
                         self.aiTimer += 1
 
-                        if self.aiTimer <= 16:
-                            if self.aiTimer % 4 == 0:
-                                self.frame += 1
+                        if self.aiTimer <= 20:
+                            self.frame = _frameTable[offset][self.var1]
+                            if self.aiTimer % 4 == 0 and self.aiTimer != 0:
+                                self.var1 += 1
+                                
+                                if self.var1 > 4:
+                                    self.var1 = 4
                         else:
                             self.direction = -self.direction
                             self.aiState = 0
                             self.aiTimer = 10
-                if self.id == 7:
+                            self.var1 = 0
+                if self.id == 7: # PLAYER BULLET (CHARGED)
                     self.speedX = self.direction * 4
 
                     if (self.rect.x + self.width < currentLevel.camera.x) or (self.rect.x > currentLevel.camera.x + currentLevel.camera.width):
@@ -1317,9 +1347,8 @@ class Camera():
         if self.section != currentLevel.player.section:
             for k, v in enumerate(currentLevel.npcs):
                 if v.section == currentLevel.player.section:
-                    v.isValid = True
-
-                    if v.origin == None:
+                    if (v.origin == None) and (npc_cfg["respawnable"][v.id - 1]):
+                        v.isValid = True
                         v.reinitialize()
 
         self.section = currentLevel.player.section
