@@ -9,15 +9,16 @@ clock = pygame.time.Clock()
 
 # default set of controls, though gets overwritten by the ones read from the file.
 controls = {
-    'left'      : pygame.K_LEFT,
-    'right'     : pygame.K_RIGHT,
-    'up'        : pygame.K_UP,
-    'down'      : pygame.K_DOWN,
-    'jump'      : pygame.K_z,
-    'shoot'     : pygame.K_s,
-    'change (l)': pygame.K_c,
-    'change (r)': pygame.K_d,
-    'pause'     : pygame.K_RETURN,
+    "left"      : pygame.K_LEFT,
+    "right"     : pygame.K_RIGHT,
+    "up"        : pygame.K_UP,
+    "down"      : pygame.K_DOWN,
+    "jump"      : pygame.K_z,
+    "shoot"     : pygame.K_s,
+    "dash"      : pygame.K_a,
+    "change (l)": pygame.K_c,
+    "change (r)": pygame.K_d,
+    "pause"     : pygame.K_RETURN,
 }
 
 new_controls = {
@@ -27,12 +28,13 @@ new_controls = {
     'down'      : 0,
     'jump'      : 0,
     'shoot'     : 0,
+    'dash'      : 0,
     'change (l)': 0,
     'change (r)': 0,
     'pause'     : 0,
 }
 
-control_names = ['left', 'right', 'up', 'down', 'jump', 'shoot', 'change (l)', 'change (r)', 'pause']
+control_names = ['left', 'right', 'up', 'down', 'jump', 'shoot', 'dash', 'change (l)', 'change (r)', 'pause']
 
 sel = 0
 keyIdx = 0
@@ -135,7 +137,7 @@ while True:
                     savingTextTimer = 120
                     file = open("test/option_controls.txt", "w")
                     
-                    text = f"{new_controls['left']};{new_controls['right']};{new_controls['up']};{new_controls['down']};{new_controls['jump']};{new_controls['shoot']};{new_controls['change (l)']};{new_controls['change (r)']};{new_controls['pause']}"
+                    text = f"{new_controls['left']};{new_controls['right']};{new_controls['up']};{new_controls['down']};{new_controls['jump']};{new_controls['shoot']};{new_controls['dash']};{new_controls['change (l)']};{new_controls['change (r)']};{new_controls['pause']}"
                     file.write(text)
                     file.close()
     else:
