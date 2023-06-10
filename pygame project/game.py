@@ -8,9 +8,20 @@ black = (0, 0, 0)
 
 #game variables
 gameVars = {
-    "inGame"            : True,
-    "isPaused"          : False, #is the game not running (as in showing the pause menu)
-    "isFrozen"          : False, #if frozen, halt every gameplay related things except rendering
+    "inGame"                : True,
+    "isPaused"              : False, #is the game not running (as in showing the pause menu)
+    "isFrozen"              : False, #if frozen, halt every gameplay related things except rendering
+    "menuTransitionTimer"   : 0,
+    "pauseMenuScreen"       : 0,
+    "pauseMenuCol"          : 0,
+    "pauseMenuRow"          : 0,
+
+    # already pressed keys
+    "leftKeyPressed"        : False,
+    "rightKeyPressed"       : False,
+    "pauseKeyPressed"       : False,
+    "changeLKeyPressed"     : False,
+    "changeRKeyPressed"     : False,
 }
 
 gameData = {
@@ -23,7 +34,7 @@ gameData = {
     "energyUp6_taken"   : False,
     "hasFlashDash"      : True,
     "hasWallCling"      : False,
-    "hasPowerPlasma"    : False,
+    "hasPowerPlasma"    : True,
     "bossesDefeated"    : 0,
     "defeatedVasudha"   : False,
     "defeatedAnguille"  : False,
@@ -57,7 +68,7 @@ settings = {
 
 setting_names = ['BGM_volume', 'SFX_volume', 'autosaves']
 
-pygame.display.set_caption("Xyler Infiltration w10")
+pygame.display.set_caption("Xyler Infiltration w14")
 font = pygame.font.Font("font/PressStart2P.ttf", 8)
 
 # assets
@@ -76,6 +87,23 @@ chargeEffects = [
     pygame.image.load("player/chargeEffect2.png"),
     pygame.image.load("player/chargeEffect3.png"),
     pygame.image.load("player/chargeEffect4.png"),
+]
+pauseMenuHuds = [
+    pygame.image.load("hud/pause_screen_weapon.png"),
+    pygame.image.load("hud/pause_screen_selection.png"),
+]
+icons = [
+    pygame.image.load("hud/icon_weapons.png"),
+    pygame.image.load("hud/icon_upgrades.png"),
+]
+playerAssets = [
+    pygame.image.load("player/player-1.png"),
+    pygame.image.load("player/player-2.png"),
+    pygame.image.load("player/player-3.png"),
+    pygame.image.load("player/player-4.png"),
+    pygame.image.load("player/player-5.png"),
+    pygame.image.load("player/player-6.png"),
+    pygame.image.load("player/player-7.png"),
 ]
 
 # constants
@@ -220,7 +248,7 @@ class Section():
 
 class Player():
     def __init__(self, x: int, y: int, section: int, level) -> None:
-        self.gfx            = pygame.image.load("player/player-1.png")
+        self.gfx            = playerAssets[0]
         self.rect           = self.gfx.get_rect()
         self.rect.width     = 21
         self.rect.height    = 32
@@ -261,7 +289,9 @@ class Player():
         self.chargeFxTimer  = 0
         self.chargeFxState  = 0
         # additional ability stuff
-        self.weaponOwned    = [WEAPON_TRIPLE_SHOT]
+        self.weaponOwned    = [WEAPON_TRIPLE_SHOT, WEAPON_CRYSTAL_BLAST, WEAPON_SHOCK_FORCE, WEAPON_SPIRAL_CYCLONE, WEAPON_BURNER_WAVE, WEAPON_LEAF_GUARD, WEAPON_DOWNPOUR_STORM]
+        self.weaponOwnedIdx = 0
+        self.weaponEnergies = [0, 36, 36, 36, 36, 36, 36]
         self.hasFlashDash   = gameData["hasFlashDash"]
         self.dashTimer      = 0
         self.dashCooldown   = 0
@@ -275,6 +305,7 @@ class Player():
         self.startSection   = self.section
 
     def reinitialize(self):
+        self.gfx            = playerAssets[0]
         self.rect.x         = self.startX
         self.rect.y         = self.startY
         self.direction      = self.startDirection
@@ -307,7 +338,7 @@ class Player():
         self.chargeFxTimer  = 0
         self.chargeFxState  = 0
         # additional ability stuff
-        self.weaponOwned    = [WEAPON_TRIPLE_SHOT]
+        self.weaponOwnedIdx = 0
         self.hasFlashDash   = gameData["hasFlashDash"]
         self.dashTimer      = 0
         self.dashCooldown   = 0
@@ -328,6 +359,18 @@ class Player():
     
     def heal(self, healValue: int):
         self.hpToRestore = healValue
+    
+    def changeWeapon(self, weaponID: int):
+        self.weapon = weaponID
+        self.gfx = playerAssets[self.weapon]
+
+        # reset every weapon states
+        # TRIPLE SHOT
+        self.bulletsOut = 0
+        self.chargeTimer = 0
+        self.chargeFxFrame = 0
+        self.chargeFxTimer = 0
+        self.chargeFxState = 0
     
     def shootProjectile(self, timerAt):
         self.chargeFxState = 0
@@ -418,7 +461,7 @@ class Player():
                     self.isClimbing = True
             else:
                 self.animState = ANIM_CLIMB
-                if self.chargeTimer == 0:
+                if self.chargeTimer == 0 and not keypressed[controls['shoot']]:
                     if keypressed[controls['up']]:
                         self.speedY = -1
                         
@@ -452,35 +495,62 @@ class Player():
                     self.animState = ANIM_SHOOT_MIDAIR
                 elif self.animState == ANIM_CLIMB:
                     self.animState = ANIM_SHOOT_CLIMB
-
-                if self.attackCooldown == 0 and self.bulletsOut < 3 and self.chargeTimer < 20:
-                    self.attackCooldown = 10
-                    self.bulletsOut += 1
-
-                    offset = -16
-                    if self.direction == DIR_RIGHT:
-                        offset = self.width + 9
-                    
-                    sectionX = self.rect.x - currentLevel.sections[self.section].x
-                    sectionY = self.rect.y - currentLevel.sections[self.section].y + 8
-
-                    if self.animState == ANIM_SHOOT_CLIMB:
-                        sectionY = sectionY - 4
-
-                    npcClass = NPC(1, sectionX + offset, sectionY, self.section, self.direction, currentLevel)
-                    npcClass.origin = self
-
-                    currentLevel.npcs.append(npcClass)
                 
-                self.chargeTimer += 1
+                if self.weapon == WEAPON_TRIPLE_SHOT:
+                    if self.attackCooldown == 0 and self.bulletsOut < 3 and self.chargeTimer < 20:
+                        self.attackCooldown = 10
+                        self.bulletsOut += 1
 
-                if self.chargeTimer > 180:
-                    self.chargeTimer = 180
+                        offset = -16
+                        if self.direction == DIR_RIGHT:
+                            offset = self.width + 9
+                        
+                        sectionX = self.rect.x - currentLevel.sections[self.section].x
+                        sectionY = self.rect.y - currentLevel.sections[self.section].y + 8
+
+                        if self.animState == ANIM_SHOOT_CLIMB:
+                            sectionY = sectionY - 4
+
+                        npcClass = NPC(1, sectionX + offset, sectionY, self.section, self.direction, currentLevel)
+                        npcClass.origin = self
+
+                        currentLevel.npcs.append(npcClass)
+                
+                    self.chargeTimer += 1
+
+                    if self.chargeTimer > 180:
+                        self.chargeTimer = 180
             
-            if keypressed[controls['dash']] and self.hasFlashDash and self.dashCooldown == 0 and not self.hasDashed:
+            if keypressed[controls['dash']] and self.dashCooldown == 0 and not self.hasDashed:
                 if not self.isClimbing:
                     self.dashTimer = 30
                     self.animState = ANIM_DASH
+            
+            if keypressed[controls['change (l)']] and not gameVars["changeLKeyPressed"]:
+                self.weaponOwnedIdx -= 1
+                gameVars["changeLKeyPressed"] = True
+
+                if self.weaponOwnedIdx < 0:
+                    self.weaponOwnedIdx = len(self.weaponOwned) - 1
+
+                self.weapon = self.weaponOwned[self.weaponOwnedIdx]
+                self.gfx = playerAssets[self.weapon]
+
+                self.changeWeapon(self.weaponOwned[self.weaponOwnedIdx])
+            
+            if keypressed[controls['change (r)']] and not gameVars["changeRKeyPressed"]:
+                self.weaponOwnedIdx += 1
+                gameVars["changeRKeyPressed"] = True
+
+                if self.weaponOwnedIdx > len(self.weaponOwned) - 1:
+                    self.weaponOwnedIdx = 0
+                
+                self.changeWeapon(self.weaponOwned[self.weaponOwnedIdx])
+            
+            if keypressed[controls['pause']] and gameVars["menuTransitionTimer"] == 0 and not gameVars["pauseKeyPressed"]:
+                gameVars["isPaused"] = True
+                gameVars["pauseKeyPressed"] = True
+                gameVars['menuTransitionTimer'] = 8
     
     def handleAnimation(self):
         if self.direction == DIR_RIGHT:
@@ -515,6 +585,9 @@ class Player():
             
             if self.speedX == 0:
                 self.animState = ANIM_IDLE
+            
+            if self.speedY > 1 and not self.isOnGround:
+                self.animState = ANIM_FALL
         elif self.animState == ANIM_JUMP:
             self.frameTimer = 0
             self.frame = 10
@@ -774,19 +847,20 @@ class Player():
 
                 if self.nearLadder > 0:
                     self.nearLadder -= 1
+                
+                #check which section the player is in
+                for k, s in enumerate(currentLevel.sections):
+                    if not currentLevel.camera.isUpdating:
+                        if self.rect.x >= s.x and self.rect.x <= s.x + s.width and self.rect.y >= s.y and self.rect.y <= s.y + s.height:
+                            self.section = k
+                
+                    if lookForSection(self.rect.x, self.rect.y) == -1 and self.rect.y > s.y + s.height and not self.hasDied:
+                        self.harm(self.health)
             else:
                 self.deathTimer += 1
 
                 if self.deathTimer > 60:
                     currentLevel.restartLevel()
-
-            #check which section the player is in
-            for k, s in enumerate(currentLevel.sections):
-                if self.rect.x >= s.x and self.rect.x <= s.x + s.width and self.rect.y >= s.y and self.rect.y <= s.y + s.height:
-                    self.section = k
-            
-                if lookForSection(self.rect.x, self.rect.y) == -1 and self.rect.y > s.y + s.height and not self.hasDied:
-                    self.harm(self.health)
         
         # flicker when the player gets damaged
         if not self.hasDied:
@@ -942,6 +1016,9 @@ class NPC():
         self.isValid = False
         self.isActive = False
 
+        if self.id == 1 or self.id == 7:
+            currentLevel.player.bulletsOut -= 1
+
         if npc_cfg["dropsItems"][self.id - 1]:
             rng = random.randint(1, 100)
 
@@ -1042,7 +1119,7 @@ class NPC():
                                         self.speedY = -2
                                         self.isOnGround = False
                                         currentLevel.player.bulletsOut -= 1
-                                        v.kill()
+                                    v.kill()
                     
                 if not self.nogravity:
                     if not self.isOnGround:
@@ -1078,10 +1155,8 @@ class NPC():
                     self.speedX = self.direction * 4
 
                     if self.rect.x + self.width < currentLevel.camera.x or self.rect.x > currentLevel.camera.x + currentLevel.camera.width:
-                        currentLevel.player.bulletsOut -= 1
                         self.kill()
                     if currentLevel.camera.isUpdating:
-                        currentLevel.player.bulletsOut -= 1
                         self.kill()
                     
                     if self.direction == DIR_LEFT:
@@ -1142,7 +1217,7 @@ class NPC():
                             self.aiState = 0
                             self.aiTimer = 10
                     
-                    if currentLevel.player.immuneFrames == 0 and currentLevel.player.dashTimer == 0:
+                    if currentLevel.player.immuneFrames == 0 and currentLevel.player.dashTimer == 0 and currentLevel.player.hasFlashDash:
                         if self.rect.colliderect(currentLevel.player.rect):
                             currentLevel.player.harm(1)
                 if self.id == 3: # TRACKER BULLET
@@ -1151,7 +1226,7 @@ class NPC():
                     if currentLevel.camera.isUpdating:
                         self.kill()
                     
-                    if currentLevel.player.immuneFrames == 0 and currentLevel.player.dashTimer == 0:
+                    if currentLevel.player.immuneFrames == 0 and currentLevel.player.dashTimer == 0 and currentLevel.player.hasFlashDash:
                         if self.rect.colliderect(currentLevel.player.rect):
                             currentLevel.player.harm(2)
                 if self.id == 4: # HEALTH ENERGY (BIG)
@@ -1163,7 +1238,7 @@ class NPC():
                         currentLevel.player.heal(HEALTH_ENERGY_SMALL_VALUE)
                         self.kill()
                 if self.id == 6:
-                    if currentLevel.player.immuneFrames == 0 and currentLevel.player.dashTimer == 0:
+                    if currentLevel.player.immuneFrames == 0 and currentLevel.player.dashTimer == 0 and currentLevel.player.hasFlashDash:
                         if self.rect.colliderect(currentLevel.player.rect):
                             currentLevel.player.harm(4)
 
@@ -1209,10 +1284,8 @@ class NPC():
                     self.speedX = self.direction * 4
 
                     if (self.rect.x + self.width < currentLevel.camera.x) or (self.rect.x > currentLevel.camera.x + currentLevel.camera.width):
-                        currentLevel.player.bulletsOut -= 1
                         self.kill()
                     if currentLevel.camera.isUpdating:
-                        currentLevel.player.bulletsOut -= 1
                         self.kill()
                     
                     if self.direction == DIR_LEFT:
@@ -1255,25 +1328,24 @@ class NPC():
                 self.aiState = 0
 
                 if self.id == 1 or self.id == 7:
-                    currentLevel.player.bulletsOut -= 1
                     self.kill()
 
 class Camera():
     def __init__(self, startX: int, startY: int, level) -> None:
-        self.x          = startX
-        self.y          = startY
-        self.width      = width
-        self.height     = height
+        self.x              = startX
+        self.y              = startY
+        self.width          = width
+        self.height         = height
         # movement vars (targetX, Y, and moveDir only used to nudge the player a bit)
-        self.dx         = 0
-        self.dy         = 0
-        self.targetX    = 0
-        self.targetY    = 0
-        self.moveDir    = 0
-        self.isUpdating = False
-        self.section    = level.player.section
+        self.dx             = 0
+        self.dy             = 0
+        self.moveDir        = 0
+        self.isUpdating     = False
+        self.section        = level.player.section
     
     def update(self):
+        # shorthands so i don't have to write long vars only to refer to one thing
+        player = currentLevel.player
         '''
         if not self.isUpdating:
             if player.rect.x + player.width > sections[self.section].x + sections[self.section].width: # right
@@ -1328,30 +1400,34 @@ class Camera():
         else:
             self.section = player.section
         '''
-        if currentLevel.player.rect.x >= self.x + (self.width / 2) and currentLevel.player.speedX > 0:
-            self.dx = currentLevel.player.speedX
-        if currentLevel.player.rect.x <= self.x + (self.width / 2) and currentLevel.player.speedX < 0:
-            self.dx = currentLevel.player.speedX
-        if currentLevel.player.rect.y >= self.y + (self.height / 2) and currentLevel.player.speedY >= 1:
-            self.dy = currentLevel.player.speedY
-        if currentLevel.player.rect.y <= self.y + (self.height / 2) and currentLevel.player.speedY <= 1:
-            self.dy = currentLevel.player.speedY
-        
-        self.x += self.dx
-        self.y += self.dy
-        self.x = math_clamp(self.x, currentLevel.sections[currentLevel.player.section].x, currentLevel.sections[currentLevel.player.section].x + currentLevel.sections[currentLevel.player.section].width - self.width)
-        self.y = math_clamp(self.y, currentLevel.sections[currentLevel.player.section].y, currentLevel.sections[currentLevel.player.section].y + currentLevel.sections[currentLevel.player.section].height - self.height)
-        self.dx = 0
-        self.dy = 0
+        if not self.isUpdating:
+            if not player.hasDied:
+                if player.rect.x >= self.x + (self.width / 2) and player.speedX > 0:
+                    self.dx = player.speedX
+                if player.rect.x <= self.x + (self.width / 2) and player.speedX < 0:
+                    self.dx = player.speedX
+                if player.rect.y >= self.y + (self.height / 2) and player.speedY >= 1:
+                    self.dy = player.speedY
+                if player.rect.y <= self.y + (self.height / 2) and player.speedY <= 1:
+                    self.dy = player.speedY
+                
+                self.x += self.dx
+                self.y += self.dy
+                self.x = math_clamp(self.x, currentLevel.sections[player.section].x, currentLevel.sections[player.section].x + currentLevel.sections[player.section].width - self.width)
+                self.y = math_clamp(self.y, currentLevel.sections[player.section].y, currentLevel.sections[player.section].y + currentLevel.sections[player.section].height - self.height)
+                self.dx = 0
+                self.dy = 0
 
-        if self.section != currentLevel.player.section:
-            for k, v in enumerate(currentLevel.npcs):
-                if v.section == currentLevel.player.section:
-                    if (v.origin == None) and (npc_cfg["respawnable"][v.id - 1]):
-                        v.isValid = True
-                        v.reinitialize()
-
-        self.section = currentLevel.player.section
+                if self.section != player.section:
+                    for k, v in enumerate(currentLevel.npcs):
+                        if v.section == player.section:
+                            if (v.origin == None) and (npc_cfg["respawnable"][v.id - 1]):
+                                v.isValid = True
+                                v.reinitialize()
+                
+                self.section = player.section
+        else:
+            pass
 
 class Level():
     sections            = []
@@ -1462,6 +1538,7 @@ class Level():
                 v.kill()
         
         self.player.reinitialize()
+        self.camera.section = self.player.section
         self.camera.x = self.player.rect.centerx - 128
         self.camera.y = self.player.rect.centery - 96
     
@@ -1504,8 +1581,10 @@ class Level():
             self.transitionTimer -= 1
 
 # everything is now in this one level class
-currentLevel = Level("test_level2")
+currentLevel = Level("test_level")
 clock = pygame.time.Clock()
+
+pauseMenuWeapons = [[WEAPON_TRIPLE_SHOT, WEAPON_CRYSTAL_BLAST], [WEAPON_SHOCK_FORCE, WEAPON_SPIRAL_CYCLONE], [WEAPON_BURNER_WAVE, WEAPON_LEAF_GUARD], [WEAPON_DOWNPOUR_STORM, -1]]
 
 def main():
     loadControls()
@@ -1516,9 +1595,21 @@ def main():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
-            if gameVars["inGame"] and currentLevel.player.weapon == WEAPON_TRIPLE_SHOT and event.type == pygame.KEYUP:
-                if event.key == controls['shoot']:
-                    currentLevel.player.shootProjectile(currentLevel.player.chargeTimer)
+            if event.type == pygame.KEYUP:
+                if gameVars["inGame"]:
+                    if event.key == controls['shoot'] and currentLevel.player.weapon == WEAPON_TRIPLE_SHOT:
+                        currentLevel.player.shootProjectile(currentLevel.player.chargeTimer)
+                    if event.key == controls['change (l)']:
+                        gameVars["changeLKeyPressed"] = False
+                    if event.key == controls['change (r)']:
+                        gameVars["changeRKeyPressed"] = False
+                
+                if event.key == controls['left']:
+                    gameVars["leftKeyPressed"] = False
+                if event.key == controls['right']:
+                    gameVars["rightKeyPressed"] = False
+                if event.key == controls['pause']:
+                    gameVars["pauseKeyPressed"] = False
         
         if gameVars["inGame"]:
             screen.fill((30, 86, 51))
@@ -1530,19 +1621,85 @@ def main():
                 screen.blit(bars[7], (8, 78 - currentLevel.player.maxHealth * 2), (0, 0, 8, currentLevel.player.maxHealth * 2))
 
                 for i in range(1, currentLevel.player.health + 1):
-                    x = 8
                     y = 78 - 2 * i
-                    screen.blit(bars[0], (x, y))
+                    screen.blit(bars[0], (8, y))
+
+                if currentLevel.player.weapon > 0:
+                    screen.blit(bars[7], (24, 78 - 36 * 2))
+
+                    for i in range(1, currentLevel.player.weaponEnergies[currentLevel.player.weapon] + 1):
+                        y = 78 - 2 * i
+                        screen.blit(bars[currentLevel.player.weapon], (24, y))
                 
                 text = font.render(f"{currentLevel.player.health}", False, (255, 255, 255))
                 screen.blit(text, (8, 88))
+
+                text2 = font.render(f"{currentLevel.player.weaponOwnedIdx}", False, (255, 255, 255))
+                screen.blit(text2, (8, 104))
                 
                 currentLevel.camera.update()
             else:
-                pass
+                keypressed = pygame.key.get_pressed()
 
-            if currentLevel.transitionTimer > 0:
+                if keypressed and gameVars["menuTransitionTimer"] == 0:
+                    if keypressed[controls['pause']] and not gameVars["pauseKeyPressed"]:
+                        gameVars["isPaused"] = False
+                        gameVars["pauseKeyPressed"] = True
+                        gameVars["menuTransitionTimer"] = 8
+                    
+                    if keypressed[controls['left']] and not gameVars["leftKeyPressed"]:
+                        if gameVars["pauseMenuRow"] != 3:
+                            gameVars["leftKeyPressed"] = True
+                            gameVars["pauseMenuCol"] -= 1
+
+                            if gameVars["pauseMenuCol"] < 0:
+                                gameVars["pauseMenuCol"] += 2
+                    
+                    if keypressed[controls['right']] and not gameVars["rightKeyPressed"]:
+                        if gameVars["pauseMenuRow"] != 3:
+                            gameVars["rightKeyPressed"] = True
+                            gameVars["pauseMenuCol"] += 1
+
+                            if gameVars["pauseMenuCol"] > 1:
+                                gameVars["pauseMenuCol"] -= 2
+
+                screen.fill((0, 0, 0))
+
+                # screen
+                screen.blit(pauseMenuHuds[0], (0, 0))
+
+                # player appearance
+                screen.blit(currentLevel.player.gfx, (0, 0), (58, 0, 32, 32))
+
+                # icons & texts
+                for i in range(4):
+                    for j in range(2):
+                        if pauseMenuWeapons[i][j] == -1: continue
+
+                        yOffset = 16
+                        if i == gameVars["pauseMenuRow"] and j == gameVars["pauseMenuCol"]:
+                            yOffset = 0
+                        
+                        if pauseMenuWeapons[i][j] in currentLevel.player.weaponOwned:
+                            screen.blit(icons[0], (16 + j * 112, 48 + i * 24), (16 * pauseMenuWeapons[i][j], yOffset, 16, 16))
+                
+                if gameData["hasFlashDash"]:
+                    screen.blit(icons[1], (168, 120), (0, 0, 16, 16))
+                
+                if gameData["hasWallCling"]:
+                    screen.blit(icons[1], (192, 120), (16, 0, 16, 16))
+
+                if gameData["hasPowerPlasma"]:
+                    screen.blit(icons[1], (216, 120), (32, 0, 16, 16))
+
+                # selection
+                screen.blit(pauseMenuHuds[1], (0, 200), (0, 24 * gameVars["pauseMenuScreen"], 256, 24))
+
+            if currentLevel.transitionTimer > 0 or gameVars["menuTransitionTimer"] > 0:
                 pygame.draw.rect(screen, (0, 0, 0), (0, 0, width, height), width)
+            
+        if gameVars["menuTransitionTimer"] > 0:
+            gameVars["menuTransitionTimer"] -= 1
         
         pygame.display.flip()
         clock.tick(60)
