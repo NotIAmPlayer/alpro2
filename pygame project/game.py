@@ -19,6 +19,8 @@ gameVars = {
     # already pressed keys
     "leftKeyPressed"        : False,
     "rightKeyPressed"       : False,
+    "upKeyPressed"          : False,
+    "downKeyPressed"        : False,
     "pauseKeyPressed"       : False,
     "changeLKeyPressed"     : False,
     "changeRKeyPressed"     : False,
@@ -1585,6 +1587,7 @@ currentLevel = Level("test_level")
 clock = pygame.time.Clock()
 
 pauseMenuWeapons = [[WEAPON_TRIPLE_SHOT, WEAPON_CRYSTAL_BLAST], [WEAPON_SHOCK_FORCE, WEAPON_SPIRAL_CYCLONE], [WEAPON_BURNER_WAVE, WEAPON_LEAF_GUARD], [WEAPON_DOWNPOUR_STORM, -1]]
+pauseMenuWeaponNames = [["TRIPLE SHOT", "CRYSTAL B."], ["SHOCK FORCE", "S. CYCLONE"], ["BURNER WAVE", "LEAF GUARD"], ["DOWNPOUR S.", ""]]
 
 def main():
     loadControls()
@@ -1608,6 +1611,10 @@ def main():
                     gameVars["leftKeyPressed"] = False
                 if event.key == controls['right']:
                     gameVars["rightKeyPressed"] = False
+                if event.key == controls['up']:
+                    gameVars["upKeyPressed"] = False
+                if event.key == controls['down']:
+                    gameVars["downKeyPressed"] = False
                 if event.key == controls['pause']:
                     gameVars["pauseKeyPressed"] = False
         
@@ -1634,8 +1641,8 @@ def main():
                 text = font.render(f"{currentLevel.player.health}", False, (255, 255, 255))
                 screen.blit(text, (8, 88))
 
-                text2 = font.render(f"{currentLevel.player.weaponOwnedIdx}", False, (255, 255, 255))
-                screen.blit(text2, (8, 104))
+                #text2 = font.render(f"{currentLevel.player.weaponOwnedIdx}", False, (255, 255, 255))
+                #screen.blit(text2, (8, 96))
                 
                 currentLevel.camera.update()
             else:
@@ -1646,6 +1653,8 @@ def main():
                         gameVars["isPaused"] = False
                         gameVars["pauseKeyPressed"] = True
                         gameVars["menuTransitionTimer"] = 8
+                        gameVars["pauseMenuRow"] = 0
+                        gameVars["pauseMenuCol"] = 0
                     
                     if keypressed[controls['left']] and not gameVars["leftKeyPressed"]:
                         if gameVars["pauseMenuRow"] != 3:
@@ -1654,7 +1663,7 @@ def main():
 
                             if gameVars["pauseMenuCol"] < 0:
                                 gameVars["pauseMenuCol"] += 2
-                    
+
                     if keypressed[controls['right']] and not gameVars["rightKeyPressed"]:
                         if gameVars["pauseMenuRow"] != 3:
                             gameVars["rightKeyPressed"] = True
@@ -1662,6 +1671,20 @@ def main():
 
                             if gameVars["pauseMenuCol"] > 1:
                                 gameVars["pauseMenuCol"] -= 2
+                    
+                    if keypressed[controls['up']] and not gameVars["upKeyPressed"]:
+                        gameVars["upKeyPressed"] = True
+                        gameVars["pauseMenuRow"] -= 1
+
+                        if gameVars["pauseMenuRow"] < 0:
+                            gameVars["pauseMenuRow"] += (4 - gameVars["pauseMenuCol"])
+                    
+                    if keypressed[controls['down']] and not gameVars["downKeyPressed"]:
+                        gameVars["downKeyPressed"] = True
+                        gameVars["pauseMenuRow"] += 1
+
+                        if gameVars["pauseMenuRow"] > 3 - gameVars["pauseMenuCol"]:
+                            gameVars["pauseMenuRow"] -= (4 - gameVars["pauseMenuCol"])
 
                 screen.fill((0, 0, 0))
 
@@ -1669,7 +1692,7 @@ def main():
                 screen.blit(pauseMenuHuds[0], (0, 0))
 
                 # player appearance
-                screen.blit(currentLevel.player.gfx, (0, 0), (58, 0, 32, 32))
+                screen.blit(playerAssets[pauseMenuWeapons[gameVars["pauseMenuRow"]][gameVars["pauseMenuCol"]]], (0, 0), (58, 0, 32, 32))
 
                 # icons & texts
                 for i in range(4):
@@ -1680,8 +1703,11 @@ def main():
                         if i == gameVars["pauseMenuRow"] and j == gameVars["pauseMenuCol"]:
                             yOffset = 0
                         
+                        text = font.render(f"{pauseMenuWeaponNames[i][j]}", False, (255, 255, 255))
+                        
                         if pauseMenuWeapons[i][j] in currentLevel.player.weaponOwned:
                             screen.blit(icons[0], (16 + j * 112, 48 + i * 24), (16 * pauseMenuWeapons[i][j], yOffset, 16, 16))
+                            screen.blit(text, (32 + j * 112, 48 + i * 24))
                 
                 if gameData["hasFlashDash"]:
                     screen.blit(icons[1], (168, 120), (0, 0, 16, 16))
