@@ -15,6 +15,7 @@ gameVars = {
     "pauseMenuScreen"       : 0,
     "pauseMenuCol"          : 0,
     "pauseMenuRow"          : 0,
+    "weaponChangeTimer"     : 0,
 
     # already pressed keys
     "leftKeyPressed"        : False,
@@ -543,6 +544,7 @@ class Player():
                     self.weaponOwnedIdx = len(self.weaponOwned) - 1
 
                 self.changeWeapon(self.weaponOwned[self.weaponOwnedIdx])
+                gameVars["weaponChangeTimer"] = 60
             
             if keypressed[controls['change (r)']] and not gameVars["changeRKeyPressed"]:
                 self.weaponOwnedIdx += 1
@@ -552,6 +554,7 @@ class Player():
                     self.weaponOwnedIdx = 0
                 
                 self.changeWeapon(self.weaponOwned[self.weaponOwnedIdx])
+                gameVars["weaponChangeTimer"] = 60
             
             if keypressed[controls['pause']] and gameVars["menuTransitionTimer"] == 0 and not gameVars["pauseKeyPressed"]:
                 gameVars["isPaused"] = True
@@ -1109,6 +1112,7 @@ class NPC():
                             if v.id == 1 and v.aiState == 0:
                                 if valid:
                                     self.harm(1, 8, WEAPON_TRIPLE_SHOT)
+                                    v.kill()
                                 else:
                                     v.direction = -v.direction
                                     v.speedY = -3/math.sqrt(2)
@@ -1544,6 +1548,7 @@ class Level():
                 v.kill()
         
         self.player.reinitialize()
+
         self.camera.section = self.player.section
         self.camera.x = self.player.rect.centerx - 128
         self.camera.y = self.player.rect.centery - 96
@@ -1606,11 +1611,8 @@ def main():
                 if gameVars["inGame"]:
                     if event.key == controls['shoot'] and currentLevel.player.weapon == WEAPON_TRIPLE_SHOT:
                         currentLevel.player.shootProjectile(currentLevel.player.chargeTimer)
-                    if event.key == controls['change (l)']:
-                        gameVars["changeLKeyPressed"] = False
-                    if event.key == controls['change (r)']:
-                        gameVars["changeRKeyPressed"] = False
                 
+                # button shenanigans (mostly menu)
                 if event.key == controls['left']:
                     gameVars["leftKeyPressed"] = False
                 if event.key == controls['right']:
@@ -1619,6 +1621,12 @@ def main():
                     gameVars["upKeyPressed"] = False
                 if event.key == controls['down']:
                     gameVars["downKeyPressed"] = False
+                if event.key == controls['jump']:
+                    gameVars["jumpKeyPressed"] = False
+                if event.key == controls['change (l)']:
+                    gameVars["changeLKeyPressed"] = False
+                if event.key == controls['change (r)']:
+                    gameVars["changeRKeyPressed"] = False
                 if event.key == controls['pause']:
                     gameVars["pauseKeyPressed"] = False
         
@@ -1645,11 +1653,21 @@ def main():
                 text = font.render(f"{currentLevel.player.health}", False, (255, 255, 255))
                 screen.blit(text, (8, 88))
 
+                if gameVars["weaponChangeTimer"] > 0:
+                    offsetX = currentLevel.player.width // 2 - 8
+                    offsetY = -20
+                    if currentLevel.player.rect.y - currentLevel.camera.y < 48:
+                        offsetY = currentLevel.player.height + 4
+                    
+                    screen.blit(icons[0], (currentLevel.player.rect.x - currentLevel.camera.x + offsetX, currentLevel.player.rect.y - currentLevel.camera.y + offsetY), (16 * currentLevel.player.weapon, 0, 16, 16))
+                    gameVars["weaponChangeTimer"] -= 1
+
                 #text2 = font.render(f"{currentLevel.player.weaponOwnedIdx}", False, (255, 255, 255))
                 #screen.blit(text2, (8, 96))
                 
                 currentLevel.camera.update()
             else:
+                gameVars["weaponChangeTimer"] = 0
                 keypressed = pygame.key.get_pressed()
 
                 if keypressed and gameVars["menuTransitionTimer"] == 0:
