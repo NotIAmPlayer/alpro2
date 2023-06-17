@@ -38,14 +38,14 @@ gameData = {
     "energyUp6_taken"   : False,
     "hasFlashDash"      : True,
     "hasWallCling"      : False,
-    "hasPowerPlasma"    : True,
+    "hasPowerPlasma"    : False,
     "bossesDefeated"    : 0,
-    "defeatedVasudha"   : False,
-    "defeatedAnguille"  : False,
-    "defeatedZephuros"  : False,
-    "defeatedHonouou"   : False,
-    "defeatedArbor"     : False,
-    "defeatedKalypso"   : False,
+    "defeatedVasudha"   : True,
+    "defeatedAnguille"  : True,
+    "defeatedZephuros"  : True,
+    "defeatedHonouou"   : True,
+    "defeatedArbor"     : True,
+    "defeatedKalypso"   : True,
 }
 #gameData["energyUpObtained"] = int(gameData["energyUp1_taken"]) + int(gameData["energyUp2_taken"]) + int(gameData["energyUp3_taken"]) + int(gameData["energyUp4_taken"]) + int(gameData["energyUp5_taken"]) + int(gameData["energyUp1_taken"])
 
@@ -84,7 +84,11 @@ bars = [
     pygame.image.load("hud/bar_burner_wave.png"),
     pygame.image.load("hud/bar_leaf_guard.png"),
     pygame.image.load("hud/bar_downpour_storm.png"),
-    pygame.image.load("hud/bar_empty.png"),
+    pygame.image.load("hud/hud_health_bar.png"),
+    pygame.image.load("hud/hud_health_bar_hollow.png"),
+    pygame.image.load("hud/hud_weapon_bar.png"),
+    pygame.image.load("hud/hud_weapon_bar_hollow.png"),
+    pygame.image.load("hud/hud_deco.png"),
 ]
 chargeEffects = [
     pygame.image.load("player/chargeEffect1.png"),
@@ -293,7 +297,7 @@ class Player():
         self.chargeFxTimer  = 0
         self.chargeFxState  = 0
         # additional ability stuff
-        self.weaponOwned    = [WEAPON_TRIPLE_SHOT, WEAPON_SHOCK_FORCE, WEAPON_BURNER_WAVE, WEAPON_LEAF_GUARD]
+        self.weaponOwned    = self.weaponSet()
         self.weaponOwnedIdx = 0
         self.weaponEnergies = [0, 36, 36, 36, 36, 36, 36]
         self.hasFlashDash   = gameData["hasFlashDash"]
@@ -307,6 +311,24 @@ class Player():
         self.startY         = self.rect.y
         self.startDirection = self.direction
         self.startSection   = self.section
+    
+    def weaponSet(self):
+        ret = [WEAPON_TRIPLE_SHOT]
+
+        if gameData["defeatedVasudha"]:
+            ret.append(WEAPON_CRYSTAL_BLAST)
+        if gameData["defeatedAnguille"]:
+            ret.append(WEAPON_SHOCK_FORCE)
+        if gameData["defeatedZephuros"]:
+            ret.append(WEAPON_SPIRAL_CYCLONE)
+        if gameData["defeatedHonouou"]:
+            ret.append(WEAPON_BURNER_WAVE)
+        if gameData["defeatedArbor"]:
+            ret.append(WEAPON_LEAF_GUARD)
+        if gameData["defeatedKalypso"]:
+            ret.append(WEAPON_DOWNPOUR_STORM)
+        
+        return ret
 
     def reinitialize(self):
         self.gfx            = playerAssets[0]
@@ -559,7 +581,7 @@ class Player():
             if keypressed[controls['pause']] and gameVars["menuTransitionTimer"] == 0 and not gameVars["pauseKeyPressed"]:
                 gameVars["isPaused"] = True
                 gameVars["pauseKeyPressed"] = True
-                gameVars['menuTransitionTimer'] = 8
+                gameVars['menuTransitionTimer'] = 16
     
     def handleAnimation(self):
         if self.direction == DIR_RIGHT:
@@ -1227,7 +1249,7 @@ class NPC():
                             self.aiState = 0
                             self.aiTimer = 10
                     
-                    if currentLevel.player.immuneFrames == 0 and currentLevel.player.dashTimer == 0 and currentLevel.player.hasFlashDash:
+                    if currentLevel.player.immuneFrames == 0 and (currentLevel.player.dashTimer == 0 or not currentLevel.player.hasFlashDash):
                         if self.rect.colliderect(currentLevel.player.rect):
                             currentLevel.player.harm(1)
                 if self.id == 3: # TRACKER BULLET
@@ -1236,7 +1258,7 @@ class NPC():
                     if currentLevel.camera.isUpdating:
                         self.kill()
                     
-                    if currentLevel.player.immuneFrames == 0 and currentLevel.player.dashTimer == 0 and currentLevel.player.hasFlashDash:
+                    if currentLevel.player.immuneFrames == 0 and (currentLevel.player.dashTimer == 0 or not currentLevel.player.hasFlashDash):
                         if self.rect.colliderect(currentLevel.player.rect):
                             currentLevel.player.harm(2)
                 if self.id == 4: # HEALTH ENERGY (BIG)
@@ -1248,7 +1270,7 @@ class NPC():
                         currentLevel.player.heal(HEALTH_ENERGY_SMALL_VALUE)
                         self.kill()
                 if self.id == 6:
-                    if currentLevel.player.immuneFrames == 0 and currentLevel.player.dashTimer == 0 and currentLevel.player.hasFlashDash:
+                    if currentLevel.player.immuneFrames == 0 and (currentLevel.player.dashTimer == 0 or not currentLevel.player.hasFlashDash):
                         if self.rect.colliderect(currentLevel.player.rect):
                             currentLevel.player.harm(4)
 
@@ -1598,6 +1620,20 @@ clock = pygame.time.Clock()
 pauseMenuWeapons = [[WEAPON_TRIPLE_SHOT, WEAPON_CRYSTAL_BLAST], [WEAPON_SHOCK_FORCE, WEAPON_SPIRAL_CYCLONE], [WEAPON_BURNER_WAVE, WEAPON_LEAF_GUARD], [WEAPON_DOWNPOUR_STORM, -1, -1, -1]]
 pauseMenuWeaponNames = [["TRIPLE SHOT", "CRYSTAL B."], ["SHOCK FORCE", "S. CYCLONE"], ["BURNER WAVE", "LEAF GUARD"], ["DOWNPOUR S.", "", "", ""]]
 
+weaponDescHeader = [["-TRIPLE SHOT-", "-CRYSTAL BLAST-"],
+                    ["-SHOCK FORCE-", "-SPIRAL CYCLONE-"],
+                    ["-BURNER WAVE-", "-LEAF GUARD-"],
+                    ["-DOWNPOUR STORM-", "", "", ""]]
+weaponDesc = [["SHOOTS A SMALL PROJECTILE.\nCHARGE TO RELEASE 3 LARGER\nPROJECTILES AT ONCE.",
+               "ENCASES AN ENEMY IN\nCRYSTAL THAT CAN BE USED\nAS A PLATFORM."],
+              ["FOR A TEMPORARY AMOUNT OF\nTIME, ANY ENEMIES MADE\nCONTACT WITH THE PLAYER\nGETS HIT WITH ELECTRICITY.",
+               "RELEASES A GUST OF WIND\nSTRAIGHT FORWARD. ANY\nENEMIES WITH SHIELDS CAN\nSTILL TAKE DAMAGE."],
+              ["SUMMONS A WAVE OF FIRE\nTHAT CAN BE USED ON THE\nGROUND OR IN MID-AIR.",
+               "PROTECTS YOU FROM ENEMY\nPROJECTILES, CAN BE\nUNLEASHED TO DEAL DAMAGE."],
+              ["SHOOTS A WATER SPHERE\nUPWARDS. RAINS DOWN WATER\nIF IT GOES OFFSCREEN.",
+               "", "", ""],
+             ]
+
 def main():
     loadControls()
     loadSettings()
@@ -1637,7 +1673,8 @@ def main():
                 currentLevel.runLevel()
                 
                 # HUDs
-                screen.blit(bars[7], (8, 78 - currentLevel.player.maxHealth * 2), (0, 0, 8, currentLevel.player.maxHealth * 2))
+                ## OLD HUD
+                '''screen.blit(bars[7], (8, 78 - currentLevel.player.maxHealth * 2), (0, 0, 8, currentLevel.player.maxHealth * 2))
 
                 for i in range(1, currentLevel.player.health + 1):
                     y = 78 - 2 * i
@@ -1648,10 +1685,25 @@ def main():
 
                     for i in range(1, currentLevel.player.weaponEnergies[currentLevel.player.weapon] + 1):
                         y = 78 - 2 * i
-                        screen.blit(bars[currentLevel.player.weapon], (24, y))
+                        screen.blit(bars[currentLevel.player.weapon], (24, y))'''
+
+                ## NEW HUD
+                screen.blit(bars[11], (0, 0))
+                screen.blit(bars[8], (16, 8), (36 - 6 * gameData["energyUpObtained"], 0, currentLevel.player.maxHealth * 2 + 1, 8))
+                for i in range(1, currentLevel.player.health + 1):
+                    x = 16 + 2 * (i - 1)
+                    screen.blit(bars[0], (x, 8))
+                screen.blit(bars[7], (16, 8), (36 - 6 * gameData["energyUpObtained"], 0, currentLevel.player.maxHealth * 2 + 1, 8))
                 
                 text = font.render(f"{currentLevel.player.health}", False, (255, 255, 255))
-                screen.blit(text, (8, 88))
+                screen.blit(text, (8, 32))
+
+                if currentLevel.player.weapon != 0:
+                    screen.blit(bars[10], (16, 16))
+                    for i in range(1, currentLevel.player.weaponEnergies[currentLevel.player.weapon] + 1):
+                        x = 16 + 2 * (i - 1)
+                        screen.blit(bars[currentLevel.player.weapon], (x, 15))
+                    screen.blit(bars[9], (16, 15))
 
                 if gameVars["weaponChangeTimer"] > 0:
                     offsetX = currentLevel.player.width // 2 - 8
@@ -1674,57 +1726,50 @@ def main():
                     if keypressed[controls['pause']] and not gameVars["pauseKeyPressed"]:
                         gameVars["isPaused"] = False
                         gameVars["pauseKeyPressed"] = True
-                        gameVars["menuTransitionTimer"] = 8
+                        gameVars["menuTransitionTimer"] = 16
                         gameVars["pauseMenuRow"] = 0
                         gameVars["pauseMenuCol"] = 0
                     
                     if keypressed[controls['jump']] and not gameVars["jumpKeyPressed"]:
-                        # basically the same as pause button, but you selected a weapon instead
-                        currentLevel.player.changeWeapon(pauseMenuWeapons[gameVars["pauseMenuRow"]][gameVars["pauseMenuCol"]])
+                        if gameVars["pauseMenuScreen"] == 0:
+                            # basically the same as pause button, but you selected a weapon instead
+                            currentLevel.player.changeWeapon(pauseMenuWeapons[gameVars["pauseMenuRow"]][gameVars["pauseMenuCol"]])
 
-                        gameVars["isPaused"] = False
-                        gameVars["pauseKeyPressed"] = True
-                        gameVars["menuTransitionTimer"] = 8
-                        gameVars["pauseMenuRow"] = 0
-                        gameVars["pauseMenuCol"] = 0
+                            gameVars["isPaused"] = False
+                            gameVars["pauseKeyPressed"] = True
+                            gameVars["menuTransitionTimer"] = 16
+                            gameVars["pauseMenuRow"] = 0
+                            gameVars["pauseMenuCol"] = 0
                     
                     if keypressed[controls['left']] and not gameVars["leftKeyPressed"]:
-                        gameVars["leftKeyPressed"] = True
-                        gameVars["pauseMenuCol"] -= 1
+                        if gameVars["pauseMenuScreen"] == 0:
+                            if gameVars["pauseMenuScreen"] == 0:
+                                gameVars["leftKeyPressed"] = True
+                                gameVars["pauseMenuCol"] -= 1
 
-                        if gameVars["pauseMenuCol"] < 0:
-                            gameVars["pauseMenuCol"] += 2
-                            gameVars["pauseMenuRow"] -= 1
-                            
-                        if gameVars["pauseMenuRow"] < 0:
-                            gameVars["pauseMenuCol"] = 1
-                            gameVars["pauseMenuRow"] += 4
+                                if gameVars["pauseMenuCol"] < 0:
+                                    gameVars["pauseMenuCol"] += 2
+                                    gameVars["pauseMenuRow"] -= 1
+                                    
+                                if gameVars["pauseMenuRow"] < 0:
+                                    gameVars["pauseMenuCol"] = 1
+                                    gameVars["pauseMenuRow"] += 4
 
-                        # make sure the selection can't get to weapons that aren't unlocked yet
-                        while not(pauseMenuWeapons[gameVars["pauseMenuRow"]][gameVars["pauseMenuCol"]] in currentLevel.player.weaponOwned):
-                            gameVars["pauseMenuCol"] -= 1
+                            # make sure the selection can't get to weapons that aren't unlocked yet
+                            while not(pauseMenuWeapons[gameVars["pauseMenuRow"]][gameVars["pauseMenuCol"]] in currentLevel.player.weaponOwned):
+                                gameVars["pauseMenuCol"] -= 1
 
-                            if gameVars["pauseMenuCol"] < 0:
-                                gameVars["pauseMenuCol"] += 2
-                                gameVars["pauseMenuRow"] -= 1
-                            
-                            if gameVars["pauseMenuRow"] < 0:
-                                gameVars["pauseMenuCol"] = 1
-                                gameVars["pauseMenuRow"] += 4
+                                if gameVars["pauseMenuCol"] < 0:
+                                    gameVars["pauseMenuCol"] += 2
+                                    gameVars["pauseMenuRow"] -= 1
+                                
+                                if gameVars["pauseMenuRow"] < 0:
+                                    gameVars["pauseMenuCol"] = 1
+                                    gameVars["pauseMenuRow"] += 4
 
                     if keypressed[controls['right']] and not gameVars["rightKeyPressed"]:
-                        gameVars["rightKeyPressed"] = True
-                        gameVars["pauseMenuCol"] += 1
-
-                        if gameVars["pauseMenuCol"] > 1:
-                            gameVars["pauseMenuCol"] -= 2
-                            gameVars["pauseMenuRow"] += 1
-                        
-                        if gameVars["pauseMenuRow"] > 3 - gameVars["pauseMenuCol"]:
-                            gameVars["pauseMenuRow"] -= 4
-
-                        # make sure the selection can't get to weapons that aren't unlocked yet
-                        while not(pauseMenuWeapons[gameVars["pauseMenuRow"]][gameVars["pauseMenuCol"]] in currentLevel.player.weaponOwned):
+                        if gameVars["pauseMenuScreen"] == 0:
+                            gameVars["rightKeyPressed"] = True
                             gameVars["pauseMenuCol"] += 1
 
                             if gameVars["pauseMenuCol"] > 1:
@@ -1733,20 +1778,21 @@ def main():
                             
                             if gameVars["pauseMenuRow"] > 3 - gameVars["pauseMenuCol"]:
                                 gameVars["pauseMenuRow"] -= 4
+
+                            # make sure the selection can't get to weapons that aren't unlocked yet
+                            while not(pauseMenuWeapons[gameVars["pauseMenuRow"]][gameVars["pauseMenuCol"]] in currentLevel.player.weaponOwned):
+                                gameVars["pauseMenuCol"] += 1
+
+                                if gameVars["pauseMenuCol"] > 1:
+                                    gameVars["pauseMenuCol"] -= 2
+                                    gameVars["pauseMenuRow"] += 1
+                                
+                                if gameVars["pauseMenuRow"] > 3 - gameVars["pauseMenuCol"]:
+                                    gameVars["pauseMenuRow"] -= 4
                     
                     if keypressed[controls['up']] and not gameVars["upKeyPressed"]:
-                        gameVars["upKeyPressed"] = True
-                        gameVars["pauseMenuRow"] -= 1
-
-                        if gameVars["pauseMenuRow"] < 0:
-                            gameVars["pauseMenuRow"] += (3 + gameVars["pauseMenuCol"])
-                            gameVars["pauseMenuCol"] -= 1
-                        
-                        if gameVars["pauseMenuCol"] < 0:
-                            gameVars["pauseMenuCol"] += 2
-                        
-                        # make sure the selection can't get to weapons that aren't unlocked yet
-                        while not(pauseMenuWeapons[gameVars["pauseMenuRow"]][gameVars["pauseMenuCol"]] in currentLevel.player.weaponOwned):
+                        if gameVars["pauseMenuScreen"] == 0:
+                            gameVars["upKeyPressed"] = True
                             gameVars["pauseMenuRow"] -= 1
 
                             if gameVars["pauseMenuRow"] < 0:
@@ -1755,60 +1801,92 @@ def main():
                             
                             if gameVars["pauseMenuCol"] < 0:
                                 gameVars["pauseMenuCol"] += 2
+                            
+                            # make sure the selection can't get to weapons that aren't unlocked yet
+                            while not(pauseMenuWeapons[gameVars["pauseMenuRow"]][gameVars["pauseMenuCol"]] in currentLevel.player.weaponOwned):
+                                gameVars["pauseMenuRow"] -= 1
+
+                                if gameVars["pauseMenuRow"] < 0:
+                                    gameVars["pauseMenuRow"] += (3 + gameVars["pauseMenuCol"])
+                                    gameVars["pauseMenuCol"] -= 1
+                                
+                                if gameVars["pauseMenuCol"] < 0:
+                                    gameVars["pauseMenuCol"] += 2
                     
                     if keypressed[controls['down']] and not gameVars["downKeyPressed"]:
-                        gameVars["downKeyPressed"] = True
-                        gameVars["pauseMenuRow"] += 1
-
-                        if gameVars["pauseMenuRow"] > 3 - gameVars["pauseMenuCol"]:
-                            gameVars["pauseMenuRow"] -= (4 - gameVars["pauseMenuCol"])
-                            gameVars["pauseMenuCol"] += 1
-
-                        if gameVars["pauseMenuCol"] > 1:
-                            gameVars["pauseMenuCol"] -= 2
-                        
-                        # make sure the selection can't get to weapons that aren't unlocked yet
-                        while not(pauseMenuWeapons[gameVars["pauseMenuRow"]][gameVars["pauseMenuCol"]] in currentLevel.player.weaponOwned):
+                        if gameVars["pauseMenuScreen"] == 0:
+                            gameVars["downKeyPressed"] = True
                             gameVars["pauseMenuRow"] += 1
 
                             if gameVars["pauseMenuRow"] > 3 - gameVars["pauseMenuCol"]:
                                 gameVars["pauseMenuRow"] -= (4 - gameVars["pauseMenuCol"])
                                 gameVars["pauseMenuCol"] += 1
-                            
+
                             if gameVars["pauseMenuCol"] > 1:
                                 gameVars["pauseMenuCol"] -= 2
+                            
+                            # make sure the selection can't get to weapons that aren't unlocked yet
+                            while not(pauseMenuWeapons[gameVars["pauseMenuRow"]][gameVars["pauseMenuCol"]] in currentLevel.player.weaponOwned):
+                                gameVars["pauseMenuRow"] += 1
+
+                                if gameVars["pauseMenuRow"] > 3 - gameVars["pauseMenuCol"]:
+                                    gameVars["pauseMenuRow"] -= (4 - gameVars["pauseMenuCol"])
+                                    gameVars["pauseMenuCol"] += 1
+                                
+                                if gameVars["pauseMenuCol"] > 1:
+                                    gameVars["pauseMenuCol"] -= 2
 
                 screen.fill((0, 0, 0))
 
                 # screen
-                screen.blit(pauseMenuHuds[0], (0, 0))
+                if gameVars["pauseMenuScreen"] == 0:
+                    screen.blit(pauseMenuHuds[0], (0, 0))
 
-                # player appearance
-                screen.blit(playerAssets[pauseMenuWeapons[gameVars["pauseMenuRow"]][gameVars["pauseMenuCol"]]], (0, 0), (58, 0, 32, 32))
+                    # player appearance
+                    if pauseMenuWeapons[gameVars["pauseMenuRow"]][gameVars["pauseMenuCol"]] != -1:
+                        screen.blit(playerAssets[pauseMenuWeapons[gameVars["pauseMenuRow"]][gameVars["pauseMenuCol"]]], (0, 0), (58, 0, 32, 32))
+                    else:
+                        screen.blit(playerAssets[currentLevel.player.weapon], (0, 0), (58, 0, 32, 32))
 
-                # icons & texts
-                for i in range(4):
-                    for j in range(2):
-                        if pauseMenuWeapons[i][j] == -1: continue
+                    # icons & texts
+                    for i in range(4):
+                        for j in range(2):
+                            if pauseMenuWeapons[i][j] == -1: continue
 
-                        yOffset = 16
-                        if i == gameVars["pauseMenuRow"] and j == gameVars["pauseMenuCol"]:
-                            yOffset = 0
-                        
-                        text = font.render(f"{pauseMenuWeaponNames[i][j]}", False, (255, 255, 255))
-                        
-                        if pauseMenuWeapons[i][j] in currentLevel.player.weaponOwned:
-                            screen.blit(icons[0], (16 + j * 112, 48 + i * 24), (16 * pauseMenuWeapons[i][j], yOffset, 16, 16))
-                            screen.blit(text, (32 + j * 112, 48 + i * 24))
-                
-                if gameData["hasFlashDash"]:
-                    screen.blit(icons[1], (168, 120), (0, 0, 16, 16))
-                
-                if gameData["hasWallCling"]:
-                    screen.blit(icons[1], (192, 120), (16, 0, 16, 16))
+                            yOffset = 16
+                            if i == gameVars["pauseMenuRow"] and j == gameVars["pauseMenuCol"]:
+                                yOffset = 0
+                            
+                            text = font.render(f"{pauseMenuWeaponNames[i][j]}", False, (255, 255, 255))
+                            
+                            if pauseMenuWeapons[i][j] in currentLevel.player.weaponOwned:
+                                screen.blit(icons[0], (16 + j * 112, 48 + i * 24), (16 * pauseMenuWeapons[i][j], yOffset, 16, 16))
+                                screen.blit(text, (32 + j * 112, 48 + i * 24))
+                                screen.blit(bars[10], (32 + j * 112, 58 + i * 24), (0, 0, 71, 2))
 
-                if gameData["hasPowerPlasma"]:
-                    screen.blit(icons[1], (216, 120), (32, 0, 16, 16))
+                                for k in range(1, currentLevel.player.weaponEnergies[pauseMenuWeapons[i][j]] + 1):
+                                    x = 16 + 2 * (k - 1)
+                                    screen.blit(bars[pauseMenuWeapons[i][j]], (16 + j * 112 + x, 56 + i * 24))
+                    
+                    # split the lines into an array of itself because font.render doesn't know how to deal with \n for some reason
+                    tempString = weaponDesc[gameVars['pauseMenuRow']][gameVars['pauseMenuCol']]
+                    tempData = tempString.split("\n")
+
+                    for i, val in enumerate(tempData):
+                        descText = font.render(f"{val}", False, (255, 255, 255))
+                        screen.blit(descText, (24, 160 + i * 8))
+                    
+                    weaponName = font.render(f"{weaponDescHeader[gameVars['pauseMenuRow']][gameVars['pauseMenuCol']]}", False, (0, 239, 222))
+                    screen.blit(weaponName, (24, 152))
+                    
+                    if gameData["hasFlashDash"]:
+                        screen.blit(icons[1], (168, 120), (0, 0, 16, 16))
+                    
+                    if gameData["hasWallCling"]:
+                        screen.blit(icons[1], (192, 120), (16, 0, 16, 16))
+
+                    if gameData["hasPowerPlasma"]:
+                        screen.blit(icons[1], (216, 120), (32, 0, 16, 16))
 
                 # selection
                 screen.blit(pauseMenuHuds[1], (0, 200), (0, 24 * gameVars["pauseMenuScreen"], 256, 24))
