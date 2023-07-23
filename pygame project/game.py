@@ -1278,7 +1278,6 @@ class NPC():
                                         # make the enemy vulnerable
                                         self.aiState = 1
                                         self.aiTimer = 16
-                                        self.speedY = -2
                                         self.isOnGround = False
                                         gameVars["currentLevel"].player.bulletsOut -= 1
                                     v.kill()
@@ -1490,7 +1489,9 @@ class NPC():
                     if self.rect.colliderect(gameVars["currentLevel"].player.rect):
                         gameVars["menuTransitionTimer"] = 60
                         self.kill()
-                
+                    
+                    gameVars["currentLevel"].changeLevel(self.var1)
+
                 self.rect.x += self.speedX
                 self.rect.y += self.speedY
         
@@ -1638,6 +1639,18 @@ class Level():
     transitionTimer     = 0
 
     def __init__(self, filename):
+        self.writeLevelData(filename)
+    
+    def changeLevel(self, newFilename):
+        self.sections            = []
+        self.blocks              = []
+        self.npcs                = []
+        self.healTimer           = 0
+        self.checkpointReached   = 0
+
+        self.writeLevelData(newFilename)
+
+    def writeLevelData(self, filename):
         self.levelName = filename # we may need this later
         file = open(f"{filename}.lvl", "r")
         self.readmode = ""
