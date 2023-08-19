@@ -486,7 +486,7 @@ class Player():
             pass
         elif timerAt < 80:
             npcClass = NPC(1, sectionX + offset, sectionY, self.section, self.direction, gameVars["currentLevel"])
-            npcClass.origin = self
+            npcClass.origin = self # type: ignore
 
             gameVars["currentLevel"].npcs.append(npcClass)
 
@@ -494,14 +494,14 @@ class Player():
         elif timerAt < 120:
             p1 = NPC(1, sectionX + offset, sectionY, self.section, self.direction, gameVars["currentLevel"])
             p1.speedY = -3/math.sqrt(2)
-            p1.origin = self
+            p1.origin = self # type: ignore
 
             p2 = NPC(1, sectionX + offset, sectionY, self.section, self.direction, gameVars["currentLevel"])
-            p2.origin = self
+            p2.origin = self # type: ignore
 
             p3 = NPC(1, sectionX + offset, sectionY, self.section, self.direction, gameVars["currentLevel"])
             p3.speedY = 3/math.sqrt(2)
-            p3.origin = self
+            p3.origin = self # type: ignore
 
             gameVars["currentLevel"].npcs.append(p1)
             gameVars["currentLevel"].npcs.append(p2)
@@ -510,7 +510,7 @@ class Player():
             self.bulletsOut += 3
         elif timerAt < 160:
             npcClass = NPC(7, sectionX + offset, sectionY, self.section, self.direction, gameVars["currentLevel"])
-            npcClass.origin = self
+            npcClass.origin = self # type: ignore
 
             gameVars["currentLevel"].npcs.append(npcClass)
 
@@ -518,14 +518,14 @@ class Player():
         else:
             p1 = NPC(7, sectionX + offset, sectionY, self.section, self.direction, gameVars["currentLevel"])
             p1.speedY = -3/math.sqrt(2)
-            p1.origin = self
+            p1.origin = self # type: ignore
 
             p2 = NPC(7, sectionX + offset, sectionY, self.section, self.direction, gameVars["currentLevel"])
-            p2.origin = self
+            p2.origin = self # type: ignore
 
             p3 = NPC(7, sectionX + offset, sectionY, self.section, self.direction, gameVars["currentLevel"])
             p3.speedY = 3/math.sqrt(2)
-            p3.origin = self
+            p3.origin = self # type: ignore
 
             gameVars["currentLevel"].npcs.append(p1)
             gameVars["currentLevel"].npcs.append(p2)
@@ -610,7 +610,7 @@ class Player():
                             sectionY = sectionY - 4
 
                         npcClass = NPC(1, sectionX + offset, sectionY, self.section, self.direction, gameVars["currentLevel"])
-                        npcClass.origin = self
+                        npcClass.origin = self # type: ignore
 
                         gameVars["currentLevel"].npcs.append(npcClass)
                 
@@ -638,7 +638,7 @@ class Player():
                             sectionY = sectionY - 4
                         
                         npcClass = NPC(10, sectionX + offset, sectionY, self.section, self.direction, gameVars["currentLevel"])
-                        npcClass.origin = self
+                        npcClass.origin = self # type: ignore
 
                         gameVars["currentLevel"].npcs.append(npcClass)
                     
@@ -880,7 +880,7 @@ class Player():
                         self.width = 16
                         self.rect.width = self.width
 
-                        self.rect.x = math_clamp(self.rect.x, self.ladderX, self.ladderX)
+                        self.rect.x = math_clamp(self.rect.x, self.ladderX, self.ladderX) # type: ignore
                     else:
                         self.width = 21
                         self.rect.width = self.width
@@ -958,7 +958,7 @@ class Player():
                                 self.isClimbing = False
                 
                 if self.hurtTimer > 0:
-                    self.animState == ANIM_HURT
+                    self.animState = ANIM_HURT
 
                 self.handleAnimation()
 
@@ -968,8 +968,8 @@ class Player():
                 if self.bulletsOut < 0:
                     self.bulletsOut = 0
 
-                self.rect.x += self.speedX
-                self.rect.y += self.speedY
+                self.rect.x += self.speedX # type: ignore
+                self.rect.y += self.speedY # type: ignore
 
                 if self.nearLadder > 0:
                     self.nearLadder -= 1
@@ -980,7 +980,7 @@ class Player():
                         if self.rect.x >= s.x and self.rect.x <= s.x + s.width and self.rect.y >= s.y and self.rect.y <= s.y + s.height:
                             self.section = k
                 
-                    if lookForSection(self.rect.x, self.rect.y) == -1 and self.rect.y > s.y + s.height and not self.hasDied:
+                    if lookForSection(self.rect.x, self.rect.y) == -1 and self.rect.y > s.y + s.height and not self.hasDied: # type: ignore
                         self.harm(self.health)
             else:
                 self.deathTimer += 1
@@ -1142,11 +1142,12 @@ class NPC():
         self.frameTimer     = 0
         self.imageState     = 0
 
-        self.var1           = 0
-        self.var2           = 0
-        self.var3           = 0
-        self.var4           = 0
-        self.var5           = 0
+        if self.id != 11:
+            self.var1       = 0
+            self.var2       = 0
+            self.var3       = 0
+            self.var4       = 0
+            self.var5       = 0
     
     def kill(self):
         self.isValid = False
@@ -1490,10 +1491,10 @@ class NPC():
                         gameVars["menuTransitionTimer"] = 60
                         self.kill()
                     
-                    gameVars["currentLevel"].changeLevel(self.var1)
+                        gameVars["currentLevel"].changeLevel(self.var1)
 
-                self.rect.x += self.speedX
-                self.rect.y += self.speedY
+                self.rect.x += self.speedX # type: ignore
+                self.rect.y += self.speedY # type: ignore
         
             if self.immuneFrames > 0:
                 self.immuneFrames -= 1
@@ -1689,7 +1690,7 @@ class Level():
                     parameters["colorG"] = int(temp[5])
                     parameters["colorB"] = int(temp[6])
                     
-                    sectionClass = Section(parameters["x"], parameters["y"], parameters["width"], parameters["height"], (parameters["colorR"], parameters["colorG"], parameters["colorB"]), 0)
+                    sectionClass = Section(parameters["x"], parameters["y"], parameters["width"], parameters["height"], (parameters["colorR"], parameters["colorG"], parameters["colorB"]), 0) # type: ignore
                     self.sections.append(sectionClass)
                 elif self.readmode == "P":
                     parameters = {
@@ -1739,7 +1740,7 @@ class Level():
                     npcClass = NPC(parameters["id"], parameters["x"], parameters["y"], parameters["section"], parameters["direction"], self)
 
                     if parameters["id"] == 11:
-                        npcClass.var1 = temp[5]
+                        npcClass.var1 = temp[5] # type: ignore
                     self.npcs.append(npcClass)
 
         file.close()
